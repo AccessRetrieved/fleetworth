@@ -31,6 +31,7 @@ EXTRACTION_PROMPT = """Given this image, return ONLY valid JSON (no markdown, no
   "trim": string,
   "condition": "excellent" | "good" | "fair" | "poor",
   "visible_damage": [string],
+  "tires_visible": boolean,
   "tire_condition": "new" | "worn" | "bald",
   "confidence": float between 0 and 1
 }
@@ -41,13 +42,14 @@ Rules:
 - If is_truck or is_real_photo is false, still fill in the other fields with your best guess or "unknown", but set confidence low (below 0.2).
 - year_estimate may be a single year or a range (e.g. "2018-2020") if you're not certain.
 - visible_damage should be an empty array if no damage is visible, otherwise short descriptive strings (e.g. "rust on rear fender", "cracked side mirror", "dent on tailgate").
+- tires_visible: true only if at least one tire/wheel is clearly visible and you can actually judge its condition from this photo. If tires aren't visible or are too small/obscured to assess, set this false — in that case tire_condition should still be your best guess, but it will be ignored by the pipeline.
 - confidence reflects how confident you are in make/model/year identification, not condition.
 - If you cannot identify the make/model at all, use "unknown" for those fields and lower confidence accordingly.
 - Return ONLY the JSON object, nothing else."""
 
 REQUIRED_KEYS = {
     "is_truck", "is_real_photo", "make", "model", "year_estimate", "trim",
-    "condition", "visible_damage", "tire_condition", "confidence",
+    "condition", "visible_damage", "tires_visible", "tire_condition", "confidence",
 }
 VALID_CONDITION = {"excellent", "good", "fair", "poor"}
 VALID_TIRE = {"new", "worn", "bald"}
@@ -101,6 +103,8 @@ def _parse_and_validate(raw_text: str) -> dict:
         raise ExtractionError("is_truck must be a boolean")
     if not isinstance(data["is_real_photo"], bool):
         raise ExtractionError("is_real_photo must be a boolean")
+    if not isinstance(data["tires_visible"], bool):
+        raise ExtractionError("tires_visible must be a boolean")
     conf = float(data["confidence"])
     if not (0.0 <= conf <= 1.0):
         raise ExtractionError(f"confidence out of range: {conf}")
@@ -119,6 +123,7 @@ def _fallback_unknown(reason: str) -> dict:
         "trim": "unknown",
         "condition": "fair",
         "visible_damage": [],
+        "tires_visible": False,
         "tire_condition": "worn",
         "confidence": 0.0,
         "_error": reason,

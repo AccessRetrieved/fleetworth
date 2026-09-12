@@ -2,11 +2,15 @@
 Phase 4b — hand-tuned pricing formula.
 
 Combines a base_price_lookup() result with a fused vision-extraction JSON
-to produce a point estimate + range. Pure arithmetic against the scraped
-comps data — no AI-guessed price, per PLAN.md's core explainability
-requirement.
+to produce a price range + confidence score. Pure arithmetic against the
+scraped comps data — no AI-guessed price, per PLAN.md's core
+explainability requirement.
 
     price = p_base * (0.5 + 0.3*condition_score + 0.15*tire_score) * (1 - 0.05*damage_count)
+
+Per PLAN.md, the headline output is the range + confidence, not a single
+point price — the point estimate above is an internal step used only to
+derive the range, and is surfaced solely as a breakdown debug field.
 """
 from pricing import base_price_lookup
 
@@ -24,11 +28,14 @@ def compute_price(extraction: dict) -> dict:
     make, model, year_estimate, condition, tire_condition, visible_damage,
     confidence.
 
-    Returns the breakdown shape used by the /predict API (Phase 5):
+    Returns the shape used by the /predict API (Phase 5) — price_range +
+    confidence are the headline, not a single point price:
     {
-      price_estimate, price_range: [low, high],
+      price_range: [low, high], confidence: float,
       breakdown: {base_price, make, model, year_estimate, condition,
-                   damage, tire_condition, confidence, base_price_match}
+                   damage, tire_condition, views_used, base_price_match,
+                   base_price_sample_size, multiplier_applied,
+                   internal_point_estimate}
     }
     """
     make = extraction.get("make", "unknown")
@@ -49,20 +56,22 @@ def compute_price(extraction: dict) -> dict:
     multiplier = (0.5 + 0.3 * condition_score + 0.15 * tire_score) * (1 - 0.05 * damage_count)
     multiplier = max(multiplier, MIN_MULTIPLIER)
 
-    price_estimate = round(p_base * multiplier, 2)
+    # Internal point estimate — used only to derive the range below, never
+    # surfaced as the headline result (see module docstring).
+    point_estimate = round(p_base * multiplier, 2)
 
     # Widen the range when either the base-price match or the vision
     # extraction itself is shaky (Phase 4d fallback handling).
     low_confidence = base["confidence"] == "low" or vlm_confidence < 0.5
     range_pct = LOW_CONFIDENCE_RANGE_PCT if low_confidence else DEFAULT_RANGE_PCT
     price_range = [
-        round(price_estimate * (1 - range_pct), 2),
-        round(price_estimate * (1 + range_pct), 2),
+        round(point_estimate * (1 - range_pct), 2),
+        round(point_estimate * (1 + range_pct), 2),
     ]
 
     return {
-        "price_estimate": price_estimate,
         "price_range": price_range,
+        "confidence": vlm_confidence,
         "breakdown": {
             "base_price": p_base,
             "base_price_match": base["match_level"],
@@ -73,7 +82,8 @@ def compute_price(extraction: dict) -> dict:
             "condition": condition,
             "damage": visible_damage,
             "tire_condition": tire_condition,
-            "confidence": vlm_confidence,
+            "views_used": extraction.get("views_used"),
             "multiplier_applied": round(multiplier, 4),
+            "internal_point_estimate": point_estimate,
         },
     }

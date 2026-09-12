@@ -1,18 +1,19 @@
 """
 Phase 3 — multi-view fusion.
 
-Combines a list of per-waypoint vision extractions (Phase 2b output, one
-per captured photo: front, driver_side, rear, passenger_side, tires,
-interior, ...) into a single fused JSON with the same schema, ready for
-the pricing formula (Phase 4b).
+Combines a list of per-photo vision extractions (Phase 2b output — an
+unlabeled list from a guided capture session, not named waypoints; see
+PLAN.md) into a single fused JSON with the same schema, ready for the
+pricing formula (Phase 4b).
 
 Rules (per PLAN.md):
   - make/model/year: majority vote across views, or highest-confidence
     single view if votes are split
   - condition: worst (lowest-scoring) condition seen across views
   - visible_damage: union of all damage flags across views, deduped
-  - tire_condition: worst score seen (ideally from the dedicated tires
-    waypoint, but any view counts if it reports one)
+  - tire_condition: worst score seen, but only among views that actually
+    report tires_visible=True — a photo where tires aren't visible
+    shouldn't be able to drag this down with an unreliable guess
 """
 from collections import Counter
 
@@ -72,7 +73,9 @@ def fuse_extractions(extractions: list[dict]) -> dict:
     conditions = [e.get("condition") for e in extractions]
     condition = _worst(conditions, CONDITION_ORDER, default="fair")
 
-    tire_conditions = [e.get("tire_condition") for e in extractions]
+    tire_views = [e for e in extractions if e.get("tires_visible")]
+    tires_visible = len(tire_views) > 0
+    tire_conditions = [e.get("tire_condition") for e in tire_views]
     tire_condition = _worst(tire_conditions, TIRE_ORDER, default="worn")
 
     all_damage = [d for e in extractions for d in (e.get("visible_damage") or [])]
@@ -97,6 +100,7 @@ def fuse_extractions(extractions: list[dict]) -> dict:
         "trim": _majority_or_highest_confidence(extractions, "trim"),
         "condition": condition,
         "visible_damage": visible_damage,
+        "tires_visible": tires_visible,
         "tire_condition": tire_condition,
         "confidence": round(confidence, 3),
         "views_used": len(extractions),

@@ -1,6 +1,11 @@
 """
-Full backend pipeline: waypoint images -> extraction -> limits gate ->
-fusion -> pricing. This is what Phase 5's /predict endpoint will call.
+Full backend pipeline: photos -> extraction -> limits gate -> fusion ->
+pricing. This is what Phase 5's /predict endpoint will call.
+
+Input is a plain, unlabeled list of photos from one guided capture
+session (PLAN.md Phase 2a) — not named waypoints. A video may also be
+submitted alongside these photos, but it is never passed to this
+pipeline; it's stored as-is by the API layer as an authenticity record.
 """
 from fusion import fuse_extractions
 from limits import evaluate, is_blurry
@@ -8,31 +13,29 @@ from pricing_formula import compute_price
 from vision_extract import _client, extract_from_image
 
 
-def run_pipeline(waypoint_images: dict[str, str | bytes]) -> dict:
+def run_pipeline(photos: list[str | bytes]) -> dict:
     """
-    waypoint_images: {waypoint_name: image (URL, path, or raw bytes)}.
-    Waypoint names should match limits.REQUIRED_WAYPOINTS where possible;
-    unrecognized keys are still extracted and fused, just not counted
-    against the required-views check.
+    photos: list of images (URL, path, or raw bytes), one per
+    auto-snapped photo from the capture session.
 
     Returns one of:
-      {"status": "priced", "price_estimate": ..., "price_range": [...], "breakdown": {...}}
+      {"status": "priced", "price_range": [...], "confidence": ..., "breakdown": {...}}
       {"status": "not_a_truck", "message": ...}
       {"status": "needs_more_info", "reason": ..., "message": ...}
     """
     client = _client()
 
-    extractions: dict[str, dict | None] = {}
-    for waypoint, image in waypoint_images.items():
-        if isinstance(image, bytes) and is_blurry(image):
-            extractions[waypoint] = None
+    extractions: list[dict | None] = []
+    for photo in photos:
+        if isinstance(photo, bytes) and is_blurry(photo):
+            extractions.append(None)
             continue
-        extractions[waypoint] = extract_from_image(image, client=client)
+        extractions.append(extract_from_image(photo, client=client))
 
     gate = evaluate(extractions)
     if gate["status"] != "priced":
         return gate
 
-    usable = [e for e in extractions.values() if e is not None]
+    usable = [e for e in extractions if e is not None]
     fused = fuse_extractions(usable)
     return {"status": "priced", **compute_price(fused)}
