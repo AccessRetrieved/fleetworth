@@ -4,7 +4,7 @@ Fleetworth is a 54 Hackathon FA26 prototype that estimates a used truck's price 
 
 ## What this frontend does
 
-The user opens the live camera, starts a continuous recording session, then walks around the truck with a loose on-screen guide: wide view, front, sides, rear, tires, and any other useful exterior view. These prompts are unverified recommendations, not capture slots, and their count does not need to match the number of photos.
+The user opens the live camera, starts a continuous recording session, then walks around the truck with a loose on-screen guide: wide view, front, sides, rear, tires, and any other useful exterior view. The guide offers its next suggestion only after a photo is successfully saved, so it never runs ahead while the camera is pointed away. These prompts are still unverified recommendations, not capture slots, and advancing does not claim that an angle was recognized or completed.
 
 During the recording, the app collects **3–7 JPEG exterior photos**, waiting about ten seconds of clear framing between automatic captures so the user can move. After Stop, the user can optionally add exactly one cabin photo through a separate picker. Exterior and optional cabin photos feed future extraction and pricing. The continuous session video is retained separately as a live-capture/authenticity record, shown for review after recording, and is not analysed for the price.
 

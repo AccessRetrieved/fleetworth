@@ -11,7 +11,6 @@ const MIN_PHOTOS = 3;
 const TARGET_PHOTOS = 7;
 const ANALYSIS_INTERVAL_MS = 600;
 const AUTO_CAPTURE_DELAY_MS = 10000;
-const GUIDE_STEP_DURATION_MS = 12000;
 const MIN_VEHICLE_SCORE = 0.42;
 const VEHICLE_CLASSES = new Set(["truck", "car", "bus"]);
 
@@ -223,6 +222,10 @@ function getActiveCameraId() {
   return cameraStream?.getVideoTracks()[0]?.getSettings().deviceId || "";
 }
 
+function hasLiveCamera(stream = cameraStream) {
+  return Boolean(stream?.getVideoTracks().some((track) => track.readyState === "live"));
+}
+
 async function refreshCameraList(preferredCameraId = getActiveCameraId()) {
   if (!navigator.mediaDevices?.enumerateDevices) return cameraSelect.value;
   const cameras = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === "videoinput");
@@ -378,11 +381,6 @@ function startClock() {
   clockTimer = window.setInterval(() => {
     const elapsed = Date.now() - recordingStartedAt;
     recordingTime.textContent = formatDuration(elapsed);
-    const nextSuggestion = Math.min(Math.floor(elapsed / GUIDE_STEP_DURATION_MS), GUIDE_STEPS.length - 1);
-    if (nextSuggestion !== suggestionIndex) {
-      suggestionIndex = nextSuggestion;
-      renderCurrentGuide();
-    }
   }, 1000);
 }
 
@@ -402,28 +400,60 @@ async function openCamera() {
   startButton.disabled = true;
   cameraSelect.disabled = true;
   showCameraMessage("Requesting camera access…");
+  const requestedId = cameraSelect.value;
+  const video = requestedId ? { deviceId: { exact: requestedId }, width: { ideal: 1920 }, height: { ideal: 1080 } } : { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } };
+  let nextStream;
   try {
-    const requestedId = cameraSelect.value;
-    const video = requestedId ? { deviceId: { exact: requestedId }, width: { ideal: 1920 }, height: { ideal: 1080 } } : { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } };
-    const nextStream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
-    cameraStream?.getTracks().forEach((track) => track.stop());
-    cameraStream = nextStream;
-    preview.srcObject = nextStream;
-    await preview.play();
-    activeCameraId = await refreshCameraList(requestedId || getActiveCameraId()).catch(() => requestedId || getActiveCameraId());
-    hideCameraMessage();
-    startButton.disabled = false;
-    setSessionState("Camera ready", "ready");
-    startAnalysisLoop();
+    nextStream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
   } catch (error) {
+    if (hasLiveCamera()) {
+      hideCameraMessage();
+      activeCameraId = getActiveCameraId();
+      await refreshCameraList(activeCameraId).catch(() => activeCameraId);
+      actionMessage.textContent = "That camera could not be selected, so the current camera is still active.";
+      setFrameStatus("warning", "Camera switch failed — using the current camera");
+      startButton.disabled = isRecording;
+      isOpeningCamera = false;
+      cameraSelect.disabled = isRecording || cameraSelect.options.length <= 1;
+      return;
+    }
     const denied = error.name === "NotAllowedError" || error.name === "SecurityError";
     showCameraMessage(denied ? "Camera permission was not granted. Allow access, then try again." : "We could not open that camera.");
     setFrameStatus("error", denied ? "Camera permission needed" : "Camera unavailable");
     startButton.disabled = false;
-  } finally {
     isOpeningCamera = false;
-    cameraSelect.disabled = cameraSelect.options.length <= 1 || isRecording;
+    cameraSelect.disabled = cameraSelect.options.length <= 1;
+    return;
   }
+
+  const previousStream = cameraStream;
+  cameraStream = nextStream;
+  preview.srcObject = nextStream;
+  previousStream?.getTracks().forEach((track) => track.stop());
+  hideCameraMessage();
+
+  try {
+    await preview.play();
+  } catch {
+    if (!hasLiveCamera(nextStream)) {
+      showCameraMessage("The camera stopped before the preview could begin. Try opening it again.");
+      setFrameStatus("error", "Camera stream ended");
+      startButton.disabled = false;
+      isOpeningCamera = false;
+      cameraSelect.disabled = cameraSelect.options.length <= 1;
+      return;
+    }
+    // Safari can reject play() during a source transition even while muted
+    // autoplay has already started the live stream. A live track is usable.
+  }
+
+  activeCameraId = await refreshCameraList(requestedId || getActiveCameraId()).catch(() => requestedId || getActiveCameraId());
+  hideCameraMessage();
+  startButton.disabled = false;
+  setSessionState("Camera ready", "ready");
+  startAnalysisLoop();
+  isOpeningCamera = false;
+  cameraSelect.disabled = cameraSelect.options.length <= 1 || isRecording;
 }
 
 function startSession() {
@@ -498,6 +528,7 @@ async function captureFrame({ automatic = false } = {}) {
   try {
     const blob = await canvasToBlob(captureCanvas);
     captures.push({ id: crypto.randomUUID?.() || `${Date.now()}-${captures.length}`, blob, url: URL.createObjectURL(blob), capturedAt: new Date().toISOString(), width: captureCanvas.width, height: captureCanvas.height, detectorConfidence: currentAssessment.confidence });
+    suggestionIndex = Math.min(suggestionIndex + 1, GUIDE_STEPS.length - 1);
     captureFlash.classList.remove("is-active");
     void captureFlash.offsetWidth;
     captureFlash.classList.add("is-active");

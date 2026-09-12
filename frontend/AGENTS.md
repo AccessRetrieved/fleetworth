@@ -20,7 +20,7 @@ The vision model extracts observable facts only; it must never generate the pric
 The frontend owns one camera-only live exterior walkaround. Do not add an arbitrary exterior upload picker or a capture-mode toggle; the only picker is the separate optional cabin-photo step after recording.
 
 - **Start session** begins a browser `MediaRecorder` session video and enables capture.
-- A flexible guide suggests wide, front, side, rear, tire, and remaining exterior coverage. It is deliberately not a fixed-angle checklist. Never mark suggestions complete based on photo count or imply that the detector verified an angle.
+- A flexible guide suggests wide, front, side, rear, tire, and remaining exterior coverage. It advances only after a photo is successfully saved, never from elapsed time. It is deliberately not a fixed-angle checklist: advancing offers the next idea and does not mark the previous suggestion verified or complete.
 - While recording, auto-snap may collect clear frames and the user may manually snap them. Keep 3–7 photos; the first three are the minimum, the rest improve coverage. Leave enough auto-capture delay for the user to walk to a meaningfully different view.
 - **Stop session** finalizes the original recording. Show the finished recording in the review area. The video is a live-capture/authenticity record and must not be used by pricing or visual extraction.
 - After Stop, offer an optional cabin photo as a separate single-image picker. It is not part of the live guide or authenticity video. If included it feeds visual extraction; if omitted, submission remains valid and the backend may return a wider range with an explanatory note.
@@ -29,6 +29,8 @@ The frontend owns one camera-only live exterior walkaround. Do not add an arbitr
 ## Browser-side evidence rules
 
 COCO-SSD runs locally in TensorFlow.js as a framing aid. Accept `truck`, `car`, and `bus`, since pickup trucks are inconsistently classified. It may warn about no vehicle, clipped framing, scale, lighting, or blur; never portray these heuristic checks as authoritative identification.
+
+Treat camera acquisition separately from preview playback. Safari may reject a redundant `video.play()` call while the underlying live stream is already rendering; never cover a live preview with a camera-open error. If switching devices fails while another stream is live, retain that stream and explain the fallback without blocking capture.
 
 If the detector fails to load, disable auto-snap and preserve a clearly labelled manual fallback based on local sharpness and lighting checks. Do not silently claim object detection succeeded.
 
