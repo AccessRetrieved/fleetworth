@@ -1,66 +1,18 @@
-const WAYPOINTS = [
-  {
-    id: "front",
-    label: "Front",
-    title: "Show the front",
-    instruction: "Center the grille, headlights, bumper, hood, and windshield in one clear frame.",
-    tip: "Stand far enough back that neither corner of the bumper touches the frame.",
-    validation: "vehicle",
-  },
-  {
-    id: "driver_front",
-    label: "Driver side · front",
-    title: "Driver side — front half",
-    instruction: "Capture the front wheel, driver door, mirror, and front body panels.",
-    tip: "Keep the camera parallel to the truck to make dents and panel gaps easier to see.",
-    validation: "vehicle",
-  },
-  {
-    id: "driver_rear",
-    label: "Driver side · rear",
-    title: "Driver side — rear half",
-    instruction: "Capture the rear door or cab edge, bed, rear wheel, and bedside panel.",
-    tip: "Overlap part of the previous view so the two side frames can be fused reliably.",
-    validation: "vehicle",
-  },
-  {
-    id: "rear",
-    label: "Rear",
-    title: "Show the rear",
-    instruction: "Center the tailgate, rear bumper, taillights, and bed opening.",
-    tip: "Keep the full bumper visible and avoid standing at a steep angle.",
-    validation: "vehicle",
-  },
-  {
-    id: "passenger_rear",
-    label: "Passenger side · rear",
-    title: "Passenger side — rear half",
-    instruction: "Capture the bed, rear wheel, bedside panel, and rear cab edge.",
-    tip: "Move slowly and keep the truck filling roughly two-thirds of the guide.",
-    validation: "vehicle",
-  },
-  {
-    id: "passenger_front",
-    label: "Passenger side · front",
-    title: "Passenger side — front half",
-    instruction: "Capture the passenger door, mirror, front wheel, and front body panels.",
-    tip: "Include a small overlap with the rear-half shot and keep all panel edges sharp.",
-    validation: "vehicle",
-  },
-  {
-    id: "tires",
-    label: "Tires & wheels",
-    title: "Show the tires and wheels",
-    instruction: "Fill the guide with one representative tire, its tread, sidewall, and wheel.",
-    tip: "Get close enough to see tread depth, but keep the entire tire inside the corners.",
-    validation: "detail",
-  },
+const GUIDE_STEPS = [
+  { title: "Start wide", instruction: "Frame the whole truck from a few steps back.", tip: "Keep all body edges inside the guide." },
+  { title: "Walk to the front", instruction: "Show the grille, headlights, bumper, and hood.", tip: "Pause briefly when the front is clear." },
+  { title: "Sweep a side", instruction: "Walk along either side so the cab, bed, and wheels are visible.", tip: "Hold the camera parallel to reveal panel damage." },
+  { title: "Circle the rear", instruction: "Show the tailgate, rear bumper, and bed corners.", tip: "Avoid cutting off the bumper or taillights." },
+  { title: "Get the tires", instruction: "Move close enough to show tread, sidewall, and wheel condition.", tip: "A clear tire view is especially valuable." },
+  { title: "Cover the other side", instruction: "Collect any useful exterior view not yet shown.", tip: "The guide is flexible—good coverage matters more than exact angles." },
 ];
 
-const VEHICLE_CLASSES = new Set(["truck", "car", "bus"]);
+const MIN_PHOTOS = 3;
+const TARGET_PHOTOS = 7;
 const ANALYSIS_INTERVAL_MS = 600;
 const AUTO_CAPTURE_DELAY_MS = 1800;
 const MIN_VEHICLE_SCORE = 0.42;
+const VEHICLE_CLASSES = new Set(["truck", "car", "bus"]);
 
 const preview = document.querySelector("#cameraPreview");
 const detectionOverlay = document.querySelector("#detectionOverlay");
@@ -77,32 +29,49 @@ const actionMessage = document.querySelector("#actionMessage");
 const frameStatus = document.querySelector("#frameStatus");
 const frameStatusText = document.querySelector("#frameStatusText");
 const captureFlash = document.querySelector("#captureFlash");
-const waypointList = document.querySelector("#waypointList");
-const captureGrid = document.querySelector("#captureGrid");
+const guideList = document.querySelector("#guideList");
 const stepLabel = document.querySelector("#stepLabel");
 const captureTitle = document.querySelector("#captureTitle");
 const captureInstruction = document.querySelector("#captureInstruction");
 const shotTip = document.querySelector("#shotTip");
-const progressBar = document.querySelector("#progressBar");
-const progressPercent = document.querySelector("#progressPercent");
-const headerProgress = document.querySelector("#headerProgress");
+const recordingTime = document.querySelector("#recordingTime");
+const recordingBadge = document.querySelector("#recordingBadge");
+const sessionState = document.querySelector("#sessionState");
+const captureGrid = document.querySelector("#captureGrid");
 const reviewSummary = document.querySelector("#reviewSummary");
 const submitHeading = document.querySelector("#submitHeading");
+const submitDetail = document.querySelector("#submitDetail");
+const resultPanel = document.querySelector("#resultPanel");
 
-const captures = new Map();
+const captures = [];
 let cameraStream;
+let activeCameraId = "";
 let isOpeningCamera = false;
 let isCapturing = false;
-let activeCameraId = "";
-let currentIndex = 0;
+let isRecording = false;
 let detector;
 let detectorMode = "loading";
+let mediaRecorder;
+let mediaChunks = [];
+let sessionVideo;
+let sessionVideoUrl;
+let recordingStartedAt;
 let analysisTimer;
+let clockTimer;
 let stableSince = 0;
-let currentAssessment = { ready: false, message: "Loading framing assistant…", confidence: 0 };
+let currentAssessment = { ready: false, type: "loading", message: "Loading framing assistant…", confidence: 0 };
 
-function currentWaypoint() {
-  return WAYPOINTS[currentIndex];
+function guideIndex() {
+  return Math.min(captures.length, GUIDE_STEPS.length - 1);
+}
+
+function currentGuide() {
+  return GUIDE_STEPS[guideIndex()];
+}
+
+function setFrameStatus(type, message) {
+  frameStatus.className = `frame-status is-${type}`;
+  frameStatusText.textContent = message;
 }
 
 function showCameraMessage(message) {
@@ -114,110 +83,95 @@ function hideCameraMessage() {
   cameraMessage.classList.add("is-hidden");
 }
 
-function setFrameStatus(type, message) {
-  frameStatus.className = `frame-status is-${type}`;
-  frameStatusText.textContent = message;
+function setSessionState(label, state = "ready") {
+  sessionState.className = `session-state is-${state}`;
+  sessionState.innerHTML = `<span class="state-dot"></span>${label}`;
 }
 
-function renderWaypoints() {
-  waypointList.replaceChildren();
+function formatDuration(milliseconds) {
+  const seconds = Math.floor(milliseconds / 1000);
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
 
-  WAYPOINTS.forEach((waypoint, index) => {
+function renderGuide() {
+  guideList.replaceChildren();
+  GUIDE_STEPS.forEach((step, index) => {
     const item = document.createElement("li");
-    const button = document.createElement("button");
-    item.className = "waypoint-item";
-    item.classList.toggle("is-current", index === currentIndex);
-    item.classList.toggle("is-complete", captures.has(waypoint.id));
-    button.className = "waypoint-button";
-    button.type = "button";
-    button.innerHTML = `
-      <span class="step-number">${captures.has(waypoint.id) ? "✓" : index + 1}</span>
-      <span class="waypoint-name">${waypoint.label}</span>
-      <span class="waypoint-status" aria-hidden="true">✓</span>
-    `;
-    button.setAttribute("aria-label", `${captures.has(waypoint.id) ? "Retake" : "Go to"} ${waypoint.label}`);
-    button.addEventListener("click", () => selectWaypoint(index));
-    item.append(button);
-    waypointList.append(item);
+    item.className = "guide-item";
+    item.classList.toggle("is-current", index === guideIndex() && isRecording);
+    item.classList.toggle("is-complete", index < guideIndex());
+    item.innerHTML = `<span>${index < guideIndex() ? "✓" : index + 1}</span><div><strong>${step.title}</strong><small>${step.instruction}</small></div>`;
+    guideList.append(item);
   });
 }
 
-function renderCaptureGrid() {
+function renderCurrentGuide() {
+  const guide = currentGuide();
+  stepLabel.textContent = isRecording ? `Live guide · photo ${captures.length + 1}` : "Camera check";
+  captureTitle.textContent = isRecording ? guide.title : "Start a live walkaround";
+  captureInstruction.textContent = isRecording
+    ? guide.instruction
+    : "When you are beside the truck, start the session. We will guide you around it and snap clear frames.";
+  shotTip.textContent = guide.tip;
+  renderGuide();
+}
+
+function renderCaptures() {
   captureGrid.replaceChildren();
-
-  WAYPOINTS.forEach((waypoint, index) => {
+  captures.forEach((capture, index) => {
     const card = document.createElement("article");
-    const capture = captures.get(waypoint.id);
     card.className = "capture-card";
-
-    if (capture) {
-      const image = new Image();
-      image.src = capture.url;
-      image.alt = `${waypoint.label} captured keyframe`;
-      const label = document.createElement("span");
-      label.className = "capture-card-label";
-      label.textContent = waypoint.label;
-      const retake = document.createElement("button");
-      retake.className = "retake-button";
-      retake.type = "button";
-      retake.textContent = "Retake";
-      retake.addEventListener("click", () => selectWaypoint(index));
-      card.append(image, label, retake);
-    } else {
-      const empty = document.createElement("div");
-      empty.className = "capture-card-empty";
-      empty.innerHTML = `<span>${index + 1}</span>${waypoint.label}`;
-      card.append(empty);
-    }
-
+    const image = new Image();
+    image.src = capture.url;
+    image.alt = `Snapped truck photo ${index + 1}`;
+    const label = document.createElement("span");
+    label.className = "capture-card-label";
+    label.textContent = `Photo ${index + 1}`;
+    const remove = document.createElement("button");
+    remove.className = "remove-button";
+    remove.type = "button";
+    remove.textContent = "Remove";
+    remove.addEventListener("click", () => removeCapture(capture.id));
+    card.append(image, label, remove);
     captureGrid.append(card);
   });
+
+  for (let index = captures.length; index < TARGET_PHOTOS; index += 1) {
+    const card = document.createElement("article");
+    card.className = "capture-card is-empty";
+    card.innerHTML = `<div><span>${index + 1}</span>${index < MIN_PHOTOS ? "Required minimum" : "Optional coverage"}</div>`;
+    captureGrid.append(card);
+  }
 }
 
-function renderProgress() {
-  const completed = captures.size;
-  const percent = Math.round((completed / WAYPOINTS.length) * 100);
-  const remaining = WAYPOINTS.length - completed;
-  const allComplete = remaining === 0;
-
-  progressBar.style.width = `${percent}%`;
-  progressPercent.textContent = `${percent}%`;
-  headerProgress.textContent = `${completed} of ${WAYPOINTS.length} views`;
-  reviewSummary.textContent = allComplete
-    ? "All required views are ready for analysis. Retake any frame that is unclear."
-    : `${remaining} required ${remaining === 1 ? "view" : "views"} remaining.`;
-  submitHeading.textContent = allComplete
-    ? "Inspection set complete"
-    : `${remaining} ${remaining === 1 ? "view" : "views"} remaining`;
-  submitButton.disabled = !allComplete;
-  resetButton.disabled = completed === 0;
-}
-
-function renderCurrentWaypoint() {
-  const waypoint = currentWaypoint();
-  stepLabel.textContent = `Step ${currentIndex + 1} of ${WAYPOINTS.length}`;
-  captureTitle.textContent = waypoint.title;
-  captureInstruction.textContent = waypoint.instruction;
-  shotTip.textContent = waypoint.tip;
-  captureButton.textContent = captures.has(waypoint.id) ? "Retake shot" : "Capture shot";
-  stableSince = 0;
-  clearDetectionOverlay();
-  renderWaypoints();
+function renderReview() {
+  const count = captures.length;
+  const enoughPhotos = count >= MIN_PHOTOS;
+  const ready = enoughPhotos && sessionVideo;
+  reviewSummary.textContent = isRecording
+    ? `${count} snapped ${count === 1 ? "photo" : "photos"} so far. Keep walking for broad coverage.`
+    : `${count} of ${MIN_PHOTOS} minimum photos${sessionVideo ? " and a recorded session" : ""}.`;
+  submitHeading.textContent = ready ? "Capture evidence is ready" : sessionVideo ? "Restart to collect enough photos" : "Stop the session to finalize video";
+  submitDetail.textContent = "Photos feed visual extraction. The session video is kept separately as a live-capture record.";
+  resetButton.disabled = !captures.length && !sessionVideo && !isRecording;
+  submitButton.disabled = !ready || isRecording;
+  renderCaptures();
 }
 
 function renderAll() {
-  renderCurrentWaypoint();
-  renderCaptureGrid();
-  renderProgress();
+  renderCurrentGuide();
+  renderReview();
 }
 
-function selectWaypoint(index) {
-  currentIndex = index;
-  actionMessage.textContent = captures.has(currentWaypoint().id)
-    ? `Ready to retake ${currentWaypoint().label.toLowerCase()}.`
-    : "";
-  renderCurrentWaypoint();
-  document.querySelector(".capture-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+function clearResult() {
+  resultPanel.className = "result-panel is-hidden";
+  resultPanel.replaceChildren();
+}
+
+function showResult(type, title, message, content = "") {
+  resultPanel.className = `result-panel is-${type}`;
+  resultPanel.innerHTML = `<p class="eyebrow">${type === "priced" ? "Estimate ready" : type === "needs-info" ? "More evidence needed" : "Sending evidence"}</p><h2>${title}</h2><p>${message}</p>${content}`;
+  resultPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function getActiveCameraId() {
@@ -225,136 +179,19 @@ function getActiveCameraId() {
 }
 
 async function refreshCameraList(preferredCameraId = getActiveCameraId()) {
-  if (!navigator.mediaDevices?.enumerateDevices) {
-    return cameraSelect.value;
-  }
-
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  const cameras = devices.filter((device) => device.kind === "videoinput");
+  if (!navigator.mediaDevices?.enumerateDevices) return cameraSelect.value;
+  const cameras = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === "videoinput");
   cameraSelect.replaceChildren();
-
-  if (cameras.length === 0) {
+  if (!cameras.length) {
     cameraSelect.add(new Option("No cameras found", ""));
     cameraSelect.disabled = true;
     return "";
   }
-
-  cameras.forEach((camera, index) => {
-    cameraSelect.add(new Option(camera.label || `Camera ${index + 1}`, camera.deviceId));
-  });
-
-  const selectedId = cameras.some((camera) => camera.deviceId === preferredCameraId)
-    ? preferredCameraId
-    : cameras[0].deviceId;
-  cameraSelect.value = selectedId;
-  cameraSelect.disabled = isOpeningCamera || cameras.length <= 1;
-  return selectedId;
-}
-
-function setCameraReady() {
-  hideCameraMessage();
-  actionMessage.textContent = "";
-  startButton.disabled = true;
-  stopButton.disabled = false;
-  cameraSelect.disabled = cameraSelect.options.length <= 1;
-  startAnalysisLoop();
-}
-
-async function openCamera() {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    showCameraMessage("This browser does not support webcam access.");
-    startButton.disabled = true;
-    setFrameStatus("error", "Camera API unavailable");
-    return;
-  }
-
-  if (isOpeningCamera) {
-    return;
-  }
-
-  isOpeningCamera = true;
-  stopAnalysisLoop();
-  startButton.disabled = true;
-  stopButton.disabled = true;
-  captureButton.disabled = true;
-  cameraSelect.disabled = true;
-  showCameraMessage("Requesting camera access…");
-  setFrameStatus("loading", "Opening camera…");
-
-  try {
-    const requestedCameraId = cameraSelect.value;
-    const videoConstraints = requestedCameraId
-      ? { deviceId: { exact: requestedCameraId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-      : { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } };
-    const nextStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
-    const previousStream = cameraStream;
-    cameraStream = nextStream;
-    preview.srcObject = nextStream;
-    previousStream?.getTracks().forEach((track) => track.stop());
-    await preview.play();
-    activeCameraId = await refreshCameraList(requestedCameraId || getActiveCameraId()).catch(
-      () => requestedCameraId || getActiveCameraId()
-    );
-    setCameraReady();
-  } catch (error) {
-    const denied = error.name === "NotAllowedError" || error.name === "SecurityError";
-    const message = denied
-      ? "Camera permission was not granted. Allow access, then select Start camera."
-      : "We could not open that camera. Check that it is connected and available.";
-    showCameraMessage(message);
-    setFrameStatus("error", denied ? "Camera permission needed" : "Camera unavailable");
-    startButton.disabled = false;
-    stopButton.disabled = !cameraStream;
-    activeCameraId = await refreshCameraList(getActiveCameraId()).catch(() => getActiveCameraId());
-    if (cameraStream) {
-      hideCameraMessage();
-      startAnalysisLoop();
-    }
-  } finally {
-    isOpeningCamera = false;
-    cameraSelect.disabled = cameraSelect.options.length <= 1;
-  }
-}
-
-function closeCamera({ updateInterface = true } = {}) {
-  stopAnalysisLoop();
-  cameraStream?.getTracks().forEach((track) => track.stop());
-  cameraStream = undefined;
-  activeCameraId = "";
-  preview.srcObject = null;
-  clearDetectionOverlay();
-  captureButton.disabled = true;
-  if (updateInterface) {
-    showCameraMessage("Camera paused. Select Start camera when you are ready.");
-    setFrameStatus("loading", "Camera paused");
-    startButton.disabled = false;
-    stopButton.disabled = true;
-    cameraSelect.disabled = cameraSelect.options.length <= 1;
-  }
-}
-
-async function loadDetector() {
-  if (!window.cocoSsd) {
-    detectorMode = "fallback";
-    autoCapture.checked = false;
-    autoCapture.disabled = true;
-    setFrameStatus("warning", "Detector unavailable — manual framing enabled");
-    return;
-  }
-
-  setFrameStatus("loading", "Loading truck detector…");
-  try {
-    detector = await window.cocoSsd.load({ base: "lite_mobilenet_v2" });
-    detectorMode = "ready";
-    if (cameraStream) {
-      setFrameStatus("loading", "Looking for the truck…");
-    }
-  } catch (error) {
-    detectorMode = "fallback";
-    autoCapture.checked = false;
-    autoCapture.disabled = true;
-    setFrameStatus("warning", "Detector unavailable — manual framing enabled");
-  }
+  cameras.forEach((camera, index) => cameraSelect.add(new Option(camera.label || `Camera ${index + 1}`, camera.deviceId)));
+  const selected = cameras.some((camera) => camera.deviceId === preferredCameraId) ? preferredCameraId : cameras[0].deviceId;
+  cameraSelect.value = selected;
+  cameraSelect.disabled = isOpeningCamera || isRecording || cameras.length <= 1;
+  return selected;
 }
 
 function stopAnalysisLoop() {
@@ -366,157 +203,6 @@ function stopAnalysisLoop() {
 function startAnalysisLoop() {
   stopAnalysisLoop();
   analyzeCurrentFrame();
-}
-
-function measureFrameQuality() {
-  const sample = document.createElement("canvas");
-  const context = sample.getContext("2d", { willReadFrequently: true });
-  sample.width = 160;
-  sample.height = 90;
-  context.drawImage(preview, 0, 0, sample.width, sample.height);
-  const pixels = context.getImageData(0, 0, sample.width, sample.height).data;
-  const gray = new Uint8Array(sample.width * sample.height);
-  let brightnessTotal = 0;
-
-  for (let pixel = 0, index = 0; pixel < pixels.length; pixel += 4, index += 1) {
-    const value = Math.round(pixels[pixel] * 0.299 + pixels[pixel + 1] * 0.587 + pixels[pixel + 2] * 0.114);
-    gray[index] = value;
-    brightnessTotal += value;
-  }
-
-  let edgeTotal = 0;
-  let comparisons = 0;
-  for (let y = 1; y < sample.height; y += 1) {
-    for (let x = 1; x < sample.width; x += 1) {
-      const index = y * sample.width + x;
-      edgeTotal += Math.abs(gray[index] - gray[index - 1]);
-      edgeTotal += Math.abs(gray[index] - gray[index - sample.width]);
-      comparisons += 2;
-    }
-  }
-
-  const brightness = brightnessTotal / gray.length;
-  const sharpness = edgeTotal / comparisons;
-  return { brightness, sharpness, isDark: brightness < 38, isBright: brightness > 236, isBlurry: sharpness < 7 };
-}
-
-function assessDetailFrame(quality) {
-  if (quality.isDark) {
-    return { ready: false, type: "warning", message: "Too dark — add light or change angle", confidence: 0 };
-  }
-  if (quality.isBright) {
-    return { ready: false, type: "warning", message: "Too much glare — change angle", confidence: 0 };
-  }
-  if (quality.isBlurry) {
-    return { ready: false, type: "warning", message: "Hold steady — image is blurry", confidence: 0 };
-  }
-  return {
-    ready: true,
-    type: "ready",
-    message: "Clear frame — confirm the full tire is visible",
-    confidence: 1,
-  };
-}
-
-function assessVehicleFrame(predictions, quality) {
-  const vehicle = predictions
-    .filter((prediction) => VEHICLE_CLASSES.has(prediction.class) && prediction.score >= MIN_VEHICLE_SCORE)
-    .sort((left, right) => right.score - left.score)[0];
-
-  if (!vehicle) {
-    clearDetectionOverlay();
-    return { ready: false, type: "warning", message: "No truck detected — point the camera at the vehicle", confidence: 0 };
-  }
-
-  drawDetection(vehicle);
-  const [x, y, width, height] = vehicle.bbox;
-  const frameWidth = preview.videoWidth;
-  const frameHeight = preview.videoHeight;
-  const coverage = (width * height) / (frameWidth * frameHeight);
-  const marginX = frameWidth * 0.018;
-  const marginY = frameHeight * 0.018;
-  const clipped = x < marginX || y < marginY || x + width > frameWidth - marginX || y + height > frameHeight - marginY;
-
-  if (clipped || coverage > 0.84) {
-    return { ready: false, type: "warning", message: "Step back — part of the truck is cut off", confidence: vehicle.score };
-  }
-  if (coverage < 0.13) {
-    return { ready: false, type: "warning", message: "Move closer — the truck is too small", confidence: vehicle.score };
-  }
-  if (quality.isDark) {
-    return { ready: false, type: "warning", message: "Truck found, but the frame is too dark", confidence: vehicle.score };
-  }
-  if (quality.isBright) {
-    return { ready: false, type: "warning", message: "Truck found, but glare is hiding details", confidence: vehicle.score };
-  }
-  if (quality.isBlurry) {
-    return { ready: false, type: "warning", message: "Truck found — hold the camera steady", confidence: vehicle.score };
-  }
-  return { ready: true, type: "ready", message: `Truck detected · ${Math.round(vehicle.score * 100)}% confidence`, confidence: vehicle.score };
-}
-
-function assessFallbackFrame(quality) {
-  const detailAssessment = assessDetailFrame(quality);
-  if (!detailAssessment.ready) {
-    return detailAssessment;
-  }
-  return { ready: true, type: "ready", message: "Frame is clear — manually confirm the truck fits the guide", confidence: 0 };
-}
-
-async function analyzeCurrentFrame() {
-  if (!cameraStream || preview.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || isCapturing) {
-    analysisTimer = window.setTimeout(analyzeCurrentFrame, ANALYSIS_INTERVAL_MS);
-    return;
-  }
-
-  try {
-    const quality = measureFrameQuality();
-    const waypoint = currentWaypoint();
-
-    if (waypoint.validation === "detail") {
-      clearDetectionOverlay();
-      currentAssessment = assessDetailFrame(quality);
-    } else if (detectorMode === "ready" && detector) {
-      setFrameStatus("loading", "Checking truck position…");
-      const predictions = await detector.detect(preview, 10, 0.35);
-      currentAssessment = assessVehicleFrame(predictions, quality);
-    } else if (detectorMode === "loading") {
-      currentAssessment = { ready: false, type: "loading", message: "Loading truck detector…", confidence: 0 };
-    } else {
-      clearDetectionOverlay();
-      currentAssessment = assessFallbackFrame(quality);
-    }
-
-    updateCaptureReadiness();
-  } catch (error) {
-    currentAssessment = { ready: false, type: "error", message: "Framing check paused — try again", confidence: 0 };
-    updateCaptureReadiness();
-  }
-  analysisTimer = window.setTimeout(analyzeCurrentFrame, ANALYSIS_INTERVAL_MS);
-}
-
-function updateCaptureReadiness() {
-  captureButton.disabled = !cameraStream || !currentAssessment.ready || isCapturing;
-  setFrameStatus(currentAssessment.type, currentAssessment.message);
-
-  if (!currentAssessment.ready) {
-    stableSince = 0;
-    return;
-  }
-  if (!stableSince) {
-    stableSince = Date.now();
-  }
-
-  const stableFor = Date.now() - stableSince;
-  const canAutoCapture = autoCapture.checked
-    && currentWaypoint().validation === "vehicle"
-    && !captures.has(currentWaypoint().id);
-  if (canAutoCapture && stableFor >= AUTO_CAPTURE_DELAY_MS) {
-    captureCurrentFrame({ automatic: true });
-  } else if (canAutoCapture) {
-    const seconds = Math.max(1, Math.ceil((AUTO_CAPTURE_DELAY_MS - stableFor) / 1000));
-    setFrameStatus("ready", `Hold steady · auto-capturing in ${seconds}`);
-  }
 }
 
 function clearDetectionOverlay() {
@@ -536,56 +222,224 @@ function drawDetection(prediction) {
   context.strokeRect(x, y, width, height);
 }
 
-function canvasToBlob(canvas) {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Could not encode frame"))), "image/jpeg", 0.9);
-  });
+function measureFrameQuality() {
+  const sample = document.createElement("canvas");
+  const context = sample.getContext("2d", { willReadFrequently: true });
+  sample.width = 160;
+  sample.height = 90;
+  context.drawImage(preview, 0, 0, sample.width, sample.height);
+  const pixels = context.getImageData(0, 0, sample.width, sample.height).data;
+  const grayscale = new Uint8Array(sample.width * sample.height);
+  let brightness = 0;
+  for (let pixel = 0, index = 0; pixel < pixels.length; pixel += 4, index += 1) {
+    const value = Math.round(pixels[pixel] * 0.299 + pixels[pixel + 1] * 0.587 + pixels[pixel + 2] * 0.114);
+    grayscale[index] = value;
+    brightness += value;
+  }
+  let edges = 0;
+  let comparisons = 0;
+  for (let y = 1; y < sample.height; y += 1) {
+    for (let x = 1; x < sample.width; x += 1) {
+      const index = y * sample.width + x;
+      edges += Math.abs(grayscale[index] - grayscale[index - 1]) + Math.abs(grayscale[index] - grayscale[index - sample.width]);
+      comparisons += 2;
+    }
+  }
+  brightness /= grayscale.length;
+  return { isDark: brightness < 38, isBright: brightness > 236, isBlurry: edges / comparisons < 7 };
 }
 
-async function captureCurrentFrame({ automatic = false } = {}) {
-  if (!cameraStream || !currentAssessment.ready || isCapturing) {
+function assessFallbackFrame(quality) {
+  if (quality.isDark) return { ready: false, type: "warning", message: "Too dark — add light or change angle", confidence: 0 };
+  if (quality.isBright) return { ready: false, type: "warning", message: "Too much glare — change angle", confidence: 0 };
+  if (quality.isBlurry) return { ready: false, type: "warning", message: "Hold steady — image is blurry", confidence: 0 };
+  return { ready: true, type: "ready", message: "Frame is clear — manually confirm the truck fits the guide", confidence: 0 };
+}
+
+function assessVehicleFrame(predictions, quality) {
+  const vehicle = predictions.filter((item) => VEHICLE_CLASSES.has(item.class) && item.score >= MIN_VEHICLE_SCORE).sort((a, b) => b.score - a.score)[0];
+  if (!vehicle) {
+    clearDetectionOverlay();
+    return { ready: false, type: "warning", message: "No truck detected — point the camera at the vehicle", confidence: 0 };
+  }
+  drawDetection(vehicle);
+  const [x, y, width, height] = vehicle.bbox;
+  const frameWidth = preview.videoWidth;
+  const frameHeight = preview.videoHeight;
+  const coverage = (width * height) / (frameWidth * frameHeight);
+  const clipped = x < frameWidth * 0.018 || y < frameHeight * 0.018 || x + width > frameWidth * 0.982 || y + height > frameHeight * 0.982;
+  if (clipped || coverage > 0.84) return { ready: false, type: "warning", message: "Step back — part of the truck is cut off", confidence: vehicle.score };
+  if (coverage < 0.13) return { ready: false, type: "warning", message: "Move closer — the truck is too small", confidence: vehicle.score };
+  if (quality.isDark) return { ready: false, type: "warning", message: "Truck found, but the frame is too dark", confidence: vehicle.score };
+  if (quality.isBright) return { ready: false, type: "warning", message: "Truck found, but glare is hiding details", confidence: vehicle.score };
+  if (quality.isBlurry) return { ready: false, type: "warning", message: "Truck found — hold the camera steady", confidence: vehicle.score };
+  return { ready: true, type: "ready", message: `Truck detected · ${Math.round(vehicle.score * 100)}% confidence`, confidence: vehicle.score };
+}
+
+async function analyzeCurrentFrame() {
+  if (!cameraStream || preview.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || isCapturing) {
+    analysisTimer = window.setTimeout(analyzeCurrentFrame, ANALYSIS_INTERVAL_MS);
     return;
   }
+  try {
+    const quality = measureFrameQuality();
+    if (detectorMode === "ready" && detector) currentAssessment = assessVehicleFrame(await detector.detect(preview, 10, 0.35), quality);
+    else if (detectorMode === "loading") currentAssessment = { ready: false, type: "loading", message: "Loading truck detector…", confidence: 0 };
+    else {
+      clearDetectionOverlay();
+      currentAssessment = assessFallbackFrame(quality);
+    }
+    updateCaptureReadiness();
+  } catch {
+    currentAssessment = { ready: false, type: "error", message: "Framing check paused — try again", confidence: 0 };
+    updateCaptureReadiness();
+  }
+  analysisTimer = window.setTimeout(analyzeCurrentFrame, ANALYSIS_INTERVAL_MS);
+}
 
+function updateCaptureReadiness() {
+  const canSnap = isRecording && currentAssessment.ready && captures.length < TARGET_PHOTOS && !isCapturing;
+  captureButton.disabled = !canSnap;
+  setFrameStatus(currentAssessment.type, currentAssessment.message);
+  if (!canSnap) {
+    stableSince = 0;
+    return;
+  }
+  if (!stableSince) stableSince = Date.now();
+  const stableFor = Date.now() - stableSince;
+  if (autoCapture.checked && stableFor >= AUTO_CAPTURE_DELAY_MS) captureFrame({ automatic: true });
+  else if (autoCapture.checked) setFrameStatus("ready", `Hold steady · auto-snapping in ${Math.max(1, Math.ceil((AUTO_CAPTURE_DELAY_MS - stableFor) / 1000))}`);
+}
+
+function chooseRecorderOptions() {
+  const types = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm", "video/mp4"];
+  const mimeType = types.find((type) => MediaRecorder.isTypeSupported(type));
+  return mimeType ? { mimeType } : undefined;
+}
+
+function sessionVideoFilename() {
+  return sessionVideo?.type.includes("mp4") ? "session.mp4" : "session.webm";
+}
+
+function startClock() {
+  window.clearInterval(clockTimer);
+  recordingStartedAt = Date.now();
+  recordingTime.textContent = "00:00";
+  clockTimer = window.setInterval(() => { recordingTime.textContent = formatDuration(Date.now() - recordingStartedAt); }, 1000);
+}
+
+function stopClock() {
+  window.clearInterval(clockTimer);
+  clockTimer = undefined;
+}
+
+async function openCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showCameraMessage("This browser does not support webcam access.");
+    setFrameStatus("error", "Camera API unavailable");
+    return;
+  }
+  if (isOpeningCamera) return;
+  isOpeningCamera = true;
+  startButton.disabled = true;
+  cameraSelect.disabled = true;
+  showCameraMessage("Requesting camera access…");
+  try {
+    const requestedId = cameraSelect.value;
+    const video = requestedId ? { deviceId: { exact: requestedId }, width: { ideal: 1920 }, height: { ideal: 1080 } } : { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } };
+    const nextStream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+    cameraStream?.getTracks().forEach((track) => track.stop());
+    cameraStream = nextStream;
+    preview.srcObject = nextStream;
+    await preview.play();
+    activeCameraId = await refreshCameraList(requestedId || getActiveCameraId()).catch(() => requestedId || getActiveCameraId());
+    hideCameraMessage();
+    startButton.disabled = false;
+    setSessionState("Camera ready", "ready");
+    startAnalysisLoop();
+  } catch (error) {
+    const denied = error.name === "NotAllowedError" || error.name === "SecurityError";
+    showCameraMessage(denied ? "Camera permission was not granted. Allow access, then try again." : "We could not open that camera.");
+    setFrameStatus("error", denied ? "Camera permission needed" : "Camera unavailable");
+    startButton.disabled = false;
+  } finally {
+    isOpeningCamera = false;
+    cameraSelect.disabled = cameraSelect.options.length <= 1 || isRecording;
+  }
+}
+
+function startSession() {
+  if (!cameraStream) {
+    openCamera();
+    return;
+  }
+  if (!window.MediaRecorder) {
+    actionMessage.textContent = "This browser cannot record a session video. Try a current Safari or Chrome build.";
+    return;
+  }
+  clearResult();
+  mediaChunks = [];
+  sessionVideo = undefined;
+  if (sessionVideoUrl) URL.revokeObjectURL(sessionVideoUrl);
+  sessionVideoUrl = undefined;
+  try {
+    mediaRecorder = new MediaRecorder(cameraStream, chooseRecorderOptions());
+  } catch {
+    actionMessage.textContent = "We could not start the session recorder with this camera.";
+    return;
+  }
+  mediaRecorder.addEventListener("dataavailable", (event) => { if (event.data.size) mediaChunks.push(event.data); });
+  mediaRecorder.addEventListener("stop", () => {
+    const type = mediaRecorder.mimeType || "video/webm";
+    sessionVideo = new Blob(mediaChunks, { type });
+    sessionVideoUrl = URL.createObjectURL(sessionVideo);
+    isRecording = false;
+    stopClock();
+    recordingBadge.classList.add("is-hidden");
+    startButton.disabled = true;
+    stopButton.disabled = true;
+    cameraSelect.disabled = cameraSelect.options.length <= 1;
+    setSessionState("Session recorded", "complete");
+    actionMessage.textContent = captures.length >= MIN_PHOTOS ? "Session video saved locally. Review photos, then submit when ready." : `Session saved without enough photos. Discard it and restart to collect ${MIN_PHOTOS} clear photos in one continuous session.`;
+    renderAll();
+  }, { once: true });
+  mediaRecorder.start(1000);
+  isRecording = true;
+  startButton.disabled = true;
+  stopButton.disabled = false;
+  cameraSelect.disabled = true;
+  recordingBadge.classList.remove("is-hidden");
+  setSessionState("Recording live session", "recording");
+  actionMessage.textContent = "Walk around the truck. Clear frames will snap automatically.";
+  startClock();
+  renderAll();
+}
+
+function stopSession() {
+  if (mediaRecorder?.state === "recording") mediaRecorder.stop();
+}
+
+function canvasToBlob(canvas) {
+  return new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not encode frame")), "image/jpeg", 0.9));
+}
+
+async function captureFrame({ automatic = false } = {}) {
+  if (!isRecording || !currentAssessment.ready || captures.length >= TARGET_PHOTOS || isCapturing) return;
   isCapturing = true;
-  captureButton.disabled = true;
   stopAnalysisLoop();
-  const waypoint = currentWaypoint();
-  const maxWidth = 1920;
-  const scale = Math.min(1, maxWidth / preview.videoWidth);
+  const scale = Math.min(1, 1920 / preview.videoWidth);
   captureCanvas.width = Math.round(preview.videoWidth * scale);
   captureCanvas.height = Math.round(preview.videoHeight * scale);
   captureCanvas.getContext("2d").drawImage(preview, 0, 0, captureCanvas.width, captureCanvas.height);
-
   try {
     const blob = await canvasToBlob(captureCanvas);
-    const previousCapture = captures.get(waypoint.id);
-    if (previousCapture) {
-      URL.revokeObjectURL(previousCapture.url);
-    }
-    captures.set(waypoint.id, {
-      blob,
-      url: URL.createObjectURL(blob),
-      capturedAt: new Date().toISOString(),
-      width: captureCanvas.width,
-      height: captureCanvas.height,
-      detectorConfidence: currentAssessment.confidence,
-    });
-
+    captures.push({ id: crypto.randomUUID?.() || `${Date.now()}-${captures.length}`, blob, url: URL.createObjectURL(blob), capturedAt: new Date().toISOString(), width: captureCanvas.width, height: captureCanvas.height, detectorConfidence: currentAssessment.confidence });
     captureFlash.classList.remove("is-active");
     void captureFlash.offsetWidth;
     captureFlash.classList.add("is-active");
-    actionMessage.textContent = `${waypoint.label} captured${automatic ? " automatically" : ""}.`;
-
-    const nextIndex = WAYPOINTS.findIndex((candidate, index) => index > currentIndex && !captures.has(candidate.id));
-    const firstMissingIndex = WAYPOINTS.findIndex((candidate) => !captures.has(candidate.id));
-    if (nextIndex !== -1) {
-      currentIndex = nextIndex;
-    } else if (firstMissingIndex !== -1) {
-      currentIndex = firstMissingIndex;
-    }
+    actionMessage.textContent = `Photo ${captures.length} snapped${automatic ? " automatically" : ""}.`;
     renderAll();
-  } catch (error) {
+  } catch {
     actionMessage.textContent = "That frame could not be saved. Hold steady and try again.";
   } finally {
     isCapturing = false;
@@ -594,86 +448,118 @@ async function captureCurrentFrame({ automatic = false } = {}) {
   }
 }
 
-function buildCaptureManifest() {
-  return {
-    schema_version: "1.0",
-    captured_at: new Date().toISOString(),
-    waypoint_count: WAYPOINTS.length,
-    waypoints: WAYPOINTS.map((waypoint) => {
-      const capture = captures.get(waypoint.id);
-      return {
-        id: waypoint.id,
-        label: waypoint.label,
-        filename: `${waypoint.id}.jpg`,
-        captured_at: capture.capturedAt,
-        width: capture.width,
-        height: capture.height,
-        detector_confidence: capture.detectorConfidence,
-      };
-    }),
-  };
-}
-
-function buildCaptureFormData() {
-  const manifest = buildCaptureManifest();
-  const formData = new FormData();
-  formData.append("manifest", new Blob([JSON.stringify(manifest)], { type: "application/json" }), "manifest.json");
-  WAYPOINTS.forEach((waypoint) => {
-    formData.append("images", captures.get(waypoint.id).blob, `${waypoint.id}.jpg`);
-  });
-  return { formData, manifest };
-}
-
-function prepareCaptures() {
-  if (captures.size !== WAYPOINTS.length) {
-    actionMessage.textContent = "Complete every required view before analysis.";
-    return;
-  }
-
-  const manifest = buildCaptureManifest();
-  window.dispatchEvent(new CustomEvent("fleetworth:capture-ready", { detail: { manifest } }));
-  actionMessage.textContent = `${WAYPOINTS.length} keyframes are ready for the future FastAPI integration.`;
-  document.querySelector(".capture-panel").scrollIntoView({ behavior: "smooth", block: "end" });
-}
-
-function resetCaptureSession() {
-  if (!window.confirm("Clear all captured truck views and start over?")) {
-    return;
-  }
-  captures.forEach((capture) => URL.revokeObjectURL(capture.url));
-  captures.clear();
-  currentIndex = 0;
-  actionMessage.textContent = "Capture session cleared.";
+function removeCapture(id) {
+  const index = captures.findIndex((capture) => capture.id === id);
+  if (index === -1) return;
+  URL.revokeObjectURL(captures[index].url);
+  captures.splice(index, 1);
+  actionMessage.textContent = "Photo removed. Continue the live session for another frame.";
   renderAll();
 }
 
-startButton.addEventListener("click", openCamera);
-stopButton.addEventListener("click", () => closeCamera());
-captureButton.addEventListener("click", () => captureCurrentFrame());
-resetButton.addEventListener("click", resetCaptureSession);
-submitButton.addEventListener("click", prepareCaptures);
-cameraSelect.addEventListener("change", () => {
-  if (cameraStream && cameraSelect.value !== activeCameraId) {
-    actionMessage.textContent = "Switching camera…";
-    openCamera();
+function buildManifest() {
+  return { schema_version: "2.0", captured_at: new Date().toISOString(), photo_count: captures.length, session_video: { filename: sessionVideoFilename(), type: sessionVideo?.type, size: sessionVideo?.size }, photos: captures.map((capture, index) => ({ id: capture.id, filename: `capture-${index + 1}.jpg`, captured_at: capture.capturedAt, width: capture.width, height: capture.height, detector_confidence: capture.detectorConfidence })) };
+}
+
+function buildFormData() {
+  if (!sessionVideo || captures.length < MIN_PHOTOS) return null;
+  const manifest = buildManifest();
+  const formData = new FormData();
+  formData.append("manifest", new Blob([JSON.stringify(manifest)], { type: "application/json" }), "manifest.json");
+  captures.forEach((capture, index) => formData.append("photos", capture.blob, `capture-${index + 1}.jpg`));
+  formData.append("session_video", sessionVideo, sessionVideoFilename());
+  return { formData, manifest };
+}
+
+function renderBackendResponse(response) {
+  if (response.status === "priced") {
+    const [low, high] = response.price_range || [];
+    const content = `<div class="price-range">${low?.toLocaleString?.("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }) || "—"} – ${high?.toLocaleString?.("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }) || "—"}</div><p>Confidence: ${Math.round((response.confidence || 0) * 100)}%</p>`;
+    showResult("priced", "Estimated truck value", "Pricing is grounded in comparable listings and the captured visual evidence.", content);
+  } else if (response.status === "needs_more_info") {
+    showResult("needs-info", "We need a clearer view", response.message || "The current evidence cannot support a confident estimate.");
+  } else {
+    showResult("error", "We could not complete the estimate", response.message || "Please try the capture again.");
   }
-});
-autoCapture.addEventListener("change", () => {
-  stableSince = 0;
-  actionMessage.textContent = autoCapture.checked ? "Auto-capture enabled." : "Use Capture shot when the frame is ready.";
-});
-navigator.mediaDevices?.addEventListener("devicechange", () => {
-  refreshCameraList().catch(() => {});
-});
-window.addEventListener("beforeunload", () => {
-  closeCamera({ updateInterface: false });
+}
+
+async function submitSession() {
+  const payload = buildFormData();
+  if (!payload) {
+    actionMessage.textContent = "Record a session and collect at least three clear photos before submitting.";
+    return;
+  }
+  const endpoint = document.body.dataset.predictEndpoint;
+  window.dispatchEvent(new CustomEvent("fleetworth:capture-ready", { detail: { manifest: payload.manifest } }));
+  if (!endpoint) {
+    showResult("ready", "Evidence package ready", `${captures.length} photos and the session video are ready for the FastAPI /predict endpoint.`);
+    return;
+  }
+  submitButton.disabled = true;
+  showResult("loading", "Analyzing truck evidence", "Extracting visible truck facts and comparing them with market data…");
+  try {
+    const response = await fetch(endpoint, { method: "POST", body: payload.formData });
+    renderBackendResponse(await response.json());
+  } catch {
+    showResult("error", "Analysis service unavailable", "Your evidence remains in this browser. Check the backend connection and try again.");
+  } finally {
+    submitButton.disabled = false;
+  }
+}
+
+function resetSession() {
+  if (!window.confirm("Discard the recorded session and all snapped photos?")) return;
   captures.forEach((capture) => URL.revokeObjectURL(capture.url));
+  captures.splice(0, captures.length);
+  if (sessionVideoUrl) URL.revokeObjectURL(sessionVideoUrl);
+  sessionVideo = undefined;
+  sessionVideoUrl = undefined;
+  mediaChunks = [];
+  recordingTime.textContent = "00:00";
+  startButton.disabled = !cameraStream;
+  clearResult();
+  setSessionState(cameraStream ? "Camera ready" : "Ready to capture", "ready");
+  actionMessage.textContent = "Session discarded.";
+  renderAll();
+}
+
+async function loadDetector() {
+  if (!window.cocoSsd) {
+    detectorMode = "fallback";
+    autoCapture.checked = false;
+    autoCapture.disabled = true;
+    setFrameStatus("warning", "Detector unavailable — manual snapping enabled");
+    return;
+  }
+  try {
+    detector = await window.cocoSsd.load({ base: "lite_mobilenet_v2" });
+    detectorMode = "ready";
+  } catch {
+    detectorMode = "fallback";
+    autoCapture.checked = false;
+    autoCapture.disabled = true;
+    setFrameStatus("warning", "Detector unavailable — manual snapping enabled");
+  }
+}
+
+cameraSelect.addEventListener("change", () => { if (!isRecording && cameraSelect.value !== activeCameraId) openCamera(); });
+startButton.addEventListener("click", startSession);
+stopButton.addEventListener("click", stopSession);
+captureButton.addEventListener("click", () => captureFrame());
+resetButton.addEventListener("click", resetSession);
+submitButton.addEventListener("click", submitSession);
+autoCapture.addEventListener("change", () => { stableSince = 0; });
+navigator.mediaDevices?.addEventListener("devicechange", () => refreshCameraList().catch(() => {}));
+window.addEventListener("beforeunload", () => {
+  if (mediaRecorder?.state === "recording") mediaRecorder.stop();
+  stopAnalysisLoop();
+  stopClock();
+  cameraStream?.getTracks().forEach((track) => track.stop());
+  captures.forEach((capture) => URL.revokeObjectURL(capture.url));
+  if (sessionVideoUrl) URL.revokeObjectURL(sessionVideoUrl);
 });
 
-window.FleetworthCapture = {
-  buildFormData: () => (captures.size === WAYPOINTS.length ? buildCaptureFormData() : null),
-  getManifest: () => (captures.size === WAYPOINTS.length ? buildCaptureManifest() : null),
-};
+window.FleetworthCapture = { buildFormData, getManifest: () => buildFormData()?.manifest || null, showResponse: renderBackendResponse };
 
 renderAll();
 loadDetector();
