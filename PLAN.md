@@ -49,10 +49,10 @@ Design principles:
 
 ## Phase 0 — Setup
 
-- [ ] Initialize repo structure: `/scraper`, `/backend`, `/frontend`, `/data`
-- [ ] Set up Python environment for scraper + backend (venv/poetry)
-- [ ] Get vision API key working (Claude or GPT-4V or Gemini — pick one, confirm credits/access)
-- [ ] Set up basic web framework for backend (FastAPI recommended — fast to stand up, easy JSON endpoints)
+- [x] Initialize repo structure: `/scraper`, `/backend`, `/frontend`, `/data`
+- [x] Set up Python environment for scraper + backend (venv/poetry)
+- [x] Get vision API key working (Claude or GPT-4V or Gemini — pick one, confirm credits/access)
+- [x] Set up basic web framework for backend (FastAPI recommended — fast to stand up, easy JSON endpoints)
 - [ ] Frontend: Python Flask, owned by another team member on a separate branch, merged into `main` when ready — not part of this workstream
 
 ---
@@ -62,25 +62,25 @@ Design principles:
 Goal: build a dataset of `{image_url(s), make, model, year, trim, price, mileage, condition_notes}` — this becomes the base-price lookup table AND the training data for the pricing regression. This dataset is required regardless of pricing option chosen — it's what grounds the price in real sales data instead of an AI guess (see Pricing Logic notes below).
 
 ### 1a. Reconnaissance
-- [ ] Manually browse truckpaper.com search/listing pages, identify:
+- [x] Manually browse truckpaper.com search/listing pages, identify:
   - Search/listing URL structure (pagination, filters by make/model/year)
   - Whether listing data is server-rendered HTML or loaded via JS/XHR (check Network tab — if there's a JSON API backing the search results, scrape that directly instead of parsing HTML)
   - robots.txt rules — check `truckpaper.com/robots.txt` and respect disallowed paths/rate limits
-- [ ] Identify the HTML structure (or API response schema) for: listing price, year, make, model, trim, mileage, location, image URLs, listing detail page URL
+- [x] Identify the HTML structure (or API response schema) for: listing price, year, make, model, trim, mileage, location, image URLs, listing detail page URL
 
 ### 1b. Scraper implementation
-- [ ] Build a listing-index scraper: paginate through search results (filter to trucks generally, or specific makes if time-constrained — e.g. Ford F-150, Chevy Silverado, Ram 1500 as a starting set for good comps density)
-- [ ] For each listing, extract: `listing_id, make, model, year, trim, price, mileage, location, image_urls[], detail_url`
-- [ ] Download images locally (or just store URLs and fetch on demand) — **one decent primary photo per listing is sufficient**; angle doesn't need to match the query truck's capture waypoints, since comps and query are only ever compared at the level of extracted numeric features (condition_score, etc.), never pixel-to-pixel
-- [ ] Add polite scraping practices: rate limiting/delay between requests, realistic user-agent, retry/backoff on errors, respect robots.txt
-- [ ] Save raw scraped data to `/data/truckpaper_raw.jsonl` (one JSON object per line, easy to append/resume)
+- [x] Build a listing-index scraper: paginate through search results (filter to trucks generally, or specific makes if time-constrained — e.g. Ford F-150, Chevy Silverado, Ram 1500 as a starting set for good comps density)
+- [x] For each listing, extract: `listing_id, make, model, year, trim, price, mileage, location, image_urls[], detail_url`
+- [x] Download images locally (or just store URLs and fetch on demand) — **one decent primary photo per listing is sufficient**; angle doesn't need to match the query truck's capture waypoints, since comps and query are only ever compared at the level of extracted numeric features (condition_score, etc.), never pixel-to-pixel
+- [x] Add polite scraping practices: rate limiting/delay between requests, realistic user-agent, retry/backoff on errors, respect robots.txt
+- [x] Save raw scraped data to `/data/truckpaper_raw.jsonl` (one JSON object per line, easy to append/resume)
 
 ### 1c. Cleaning + structuring
-- [ ] Dedupe listings (relist detection by VIN/title if visible, or fuzzy match)
-- [ ] Drop rows with missing price or missing images
-- [ ] Normalize make/model naming (e.g. "F-150" vs "F150" vs "Ford F150")
-- [ ] Bucket by `(make, model, year)` and compute average price per bucket → this is `p_base` lookup table, save as `/data/base_prices.json`
-- [ ] Target: 100+ listings if feasible, 30-50 minimum viable for demo
+- [x] Dedupe listings (relist detection by VIN/title if visible, or fuzzy match)
+- [x] Drop rows with missing price or missing images
+- [x] Normalize make/model naming (e.g. "F-150" vs "F150" vs "Ford F150")
+- [x] Bucket by `(make, model, year)` and compute average price per bucket → this is `p_base` lookup table, save as `/data/base_prices.json`
+- [x] Target: 100+ listings if feasible, 30-50 minimum viable for demo
 
 ### 1d. Stretch — run extraction pipeline on comps too
 - [ ] Once Phase 2 (vision extraction) is working, run it on the scraped comp images as well
@@ -102,7 +102,7 @@ There is no image-vs-video choice for the user — capture is always one continu
 - [ ] **Interior/cab shots are out of scope** — the guide doesn't prompt for one, and a submission isn't penalized for not including it (internal damage isn't part of this build's pricing signal; see design principles above)
 
 ### 2b. Vision extraction
-- [ ] Write the structured-extraction prompt for the vision API:
+- [x] Write the structured-extraction prompt for the vision API:
   ```
   Given this image of a truck, return ONLY valid JSON:
   {
@@ -116,15 +116,15 @@ There is no image-vs-video choice for the user — capture is always one continu
   }
   ```
   `box` is normalized (0-1) image coordinates for that damage instance, or `null` if the model can't localize it — a description without a usable box should still be kept, just without a drawn box later (see 2c)
-- [ ] Test on 10+ sample images (mix from scraped data), iterate prompt until reliably valid + reasonably accurate
-- [ ] Wrap API call with JSON parsing + validation, handle malformed responses (retry once, then fallback to "unknown")
-- [ ] Run one extraction call per auto-snapped photo only (~3-7 calls per truck) — the stored video is never sampled into frames or fed into extraction
+- [x] Test on 10+ sample images (mix from scraped data), iterate prompt until reliably valid + reasonably accurate
+- [x] Wrap API call with JSON parsing + validation, handle malformed responses (retry once, then fallback to "unknown")
+- [x] Run one extraction call per auto-snapped photo only (~3-7 calls per truck) — the stored video is never sampled into frames or fed into extraction
 
 ### 2c. Damage visualization (bounding boxes)
-- [ ] For each photo with at least one localized damage entry (has a non-null `box`), draw a rectangle on a copy of that photo at the box coordinates (OpenCV `cv2.rectangle`, or any equivalent — implementation is flexible) and label it with the damage description
-- [ ] Save each annotated photo locally to a `results/` folder in the project (e.g. `results/<submission_id>/<photo_name>_annotated.jpg`), so the team can visually review flagged damage without digging through raw JSON
-- [ ] This is a visualization/demo aid, not a pricing input — a missing, `null`, or inaccurate box never blocks or changes pricing (Phase 4 still only uses the damage *count* and description list, unaffected by this)
-- [ ] Set expectations accordingly: a general-purpose VLM's box coordinates are rougher than a purpose-built object detector — good enough to point at "roughly here," not a precise measurement, and that's fine for what this is used for
+- [x] For each photo with at least one localized damage entry (has a non-null `box`), draw a rectangle on a copy of that photo at the box coordinates (OpenCV `cv2.rectangle`, or any equivalent — implementation is flexible) and label it with the damage description
+- [x] Save each annotated photo locally to a `results/` folder in the project (e.g. `results/<submission_id>/<photo_name>_annotated.jpg`), so the team can visually review flagged damage without digging through raw JSON
+- [x] This is a visualization/demo aid, not a pricing input — a missing, `null`, or inaccurate box never blocks or changes pricing (Phase 4 still only uses the damage *count* and description list, unaffected by this)
+- [x] Set expectations accordingly: a general-purpose VLM's box coordinates are rougher than a purpose-built object detector — good enough to point at "roughly here," not a precise measurement, and that's fine for what this is used for
 
 ---
 
@@ -132,11 +132,11 @@ There is no image-vs-video choice for the user — capture is always one continu
 
 Works across any number of usable views (3-7 typical) — not tied to a fixed count or fixed named waypoints, since exactly which angles the guided session actually snapped will vary.
 
-- [ ] Make/model/year: majority vote across all extractions, or highest-confidence single view if votes are split
-- [ ] Condition: take the *worst* (lowest) condition score seen across views — a single damaged panel shouldn't get diluted by clean views of other panels
-- [ ] Damage list: union of all damage entries seen across views, deduped by description text (case-insensitive) — exterior damage only, per the interior-out-of-scope decision above. Each entry keeps its own `box` (or `null`) from whichever view reported it; boxes are only used for Phase 2c visualization on their source photo, never merged/reprojected across views
-- [ ] Tire condition: worst score seen across whichever views show the tires
-- [ ] Output one fused JSON per upload, same schema as single-view extraction
+- [x] Make/model/year: majority vote across all extractions, or highest-confidence single view if votes are split
+- [x] Condition: take the *worst* (lowest) condition score seen across views — a single damaged panel shouldn't get diluted by clean views of other panels
+- [x] Damage list: union of all damage entries seen across views, deduped by description text (case-insensitive) — exterior damage only, per the interior-out-of-scope decision above. Each entry keeps its own `box` (or `null`) from whichever view reported it; boxes are only used for Phase 2c visualization on their source photo, never merged/reprojected across views
+- [x] Tire condition: worst score seen across whichever views show the tires
+- [x] Output one fused JSON per upload, same schema as single-view extraction
 
 ---
 
@@ -145,8 +145,8 @@ Works across any number of usable views (3-7 typical) — not tied to a fixed co
 Note: nothing in this phase trains a vision model. Option A is pure arithmetic against the scraped dataset. Option B trains a small tabular regression (seconds, `sklearn`/`xgboost` `.fit()`) — not a deep learning run — on the same scraped dataset. Either way, the scraped dataset is what grounds the output price in real sales data instead of an AI-guessed number; skipping it removes the entire reason this approach avoids hallucinated prices.
 
 ### 4a. Feature encoding
-- [ ] Map categorical condition/tire values to numeric scores (see below)
-- [ ] Count damage flags — `damage_count` is just `len(visible_damage)`, unaffected by whether an individual entry has a drawn box (Phase 2c) or not
+- [x] Map categorical condition/tire values to numeric scores (see below)
+- [x] Count damage flags — `damage_count` is just `len(visible_damage)`, unaffected by whether an individual entry has a drawn box (Phase 2c) or not
 
 ```python
 condition_map = {"excellent": 1.0, "good": 0.8, "fair": 0.55, "poor": 0.3}
@@ -154,13 +154,13 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 ```
 
 ### 4b. Option A — Hand-tuned formula (BUILD THIS FIRST)
-- [ ] Look up `p_base` from `/data/base_prices.json` by (make, model, year)
+- [x] Look up `p_base` from `/data/base_prices.json` by (make, model, year)
 - [ ] Apply formula:
   ```
   price = p_base * (0.5 + 0.3*condition_score + 0.15*tire_score) * (1 - 0.05*damage_count)
   ```
-- [ ] Sanity-check output against 3-5 known real listings, adjust coefficients if wildly off
-- [ ] **Output a price range (e.g. ±15%) plus a confidence score — this is the headline result, not a single point price.** A point estimate may be computed internally to derive the range, but it is not the primary field surfaced to the user. Widen the range (and/or lower the confidence score) when extraction confidence is low
+- [x] Sanity-check output against 3-5 known real listings, adjust coefficients if wildly off
+- [x] **Output a price range (e.g. ±15%) plus a confidence score — this is the headline result, not a single point price.** A point estimate may be computed internally to derive the range, but it is not the primary field surfaced to the user. Widen the range (and/or lower the confidence score) when extraction confidence is low
 
 ### 4c. Option B — Learned regression (STRETCH, only if Phase 1d comps-with-features data exists)
 - [ ] Fit linear regression or small XGBoost on scraped comps: `price ~ condition_score + tire_score + damage_count + make/model/year bucket`
@@ -168,21 +168,21 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 - [ ] Swap in as the default pricing function if it performs better/more sensibly — same function signature (`features_json → price`), so this is a drop-in replacement
 
 ### 4d. Fallback handling
-- [ ] Unknown/unrecognized make-model-year combo → fall back to a generic "truck" average price, flag low confidence
-- [ ] Very low extraction confidence → widen the price range, surface a warning in the UI
+- [x] Unknown/unrecognized make-model-year combo → fall back to a generic "truck" average price, flag low confidence
+- [x] Very low extraction confidence → widen the price range, surface a warning in the UI
 
 ### 4e. Knowing its limits (required per challenge brief, not just error handling)
-- [ ] **Not-a-truck detection**: if the VLM extraction indicates the subject isn't a truck (or confidence is near-zero on make/model), refuse to output a price — return a clear "this doesn't look like a truck" response instead of a number
-- [ ] **Missing-critical-view detection**: photos aren't labeled by angle (capture is unstructured/guided, not a fixed named-waypoint checklist — see Phase 2a), so this has to be judged from content, not from a slot being empty: e.g. if none of the submitted photos give a usable read on tire condition, don't silently guess — flag exactly what's missing, matching the brief's own example ("send me a shot of the tires")
-- [ ] **Blurry/unusable image detection**: reuse the blur-detection heuristic (Laplacian variance) per submitted photo; below threshold → drop that photo from the usable set rather than feeding a bad extraction into fusion
-- [ ] **Confidence-gated response tiers**: define at least two response modes — "priced" (normal output) vs. "needs more info" (names the specific gap) — the UI (Phase 6) needs to render both, not just the happy path
+- [x] **Not-a-truck detection**: if the VLM extraction indicates the subject isn't a truck (or confidence is near-zero on make/model), refuse to output a price — return a clear "this doesn't look like a truck" response instead of a number
+- [x] **Missing-critical-view detection**: photos aren't labeled by angle (capture is unstructured/guided, not a fixed named-waypoint checklist — see Phase 2a), so this has to be judged from content, not from a slot being empty: e.g. if none of the submitted photos give a usable read on tire condition, don't silently guess — flag exactly what's missing, matching the brief's own example ("send me a shot of the tires")
+- [x] **Blurry/unusable image detection**: reuse the blur-detection heuristic (Laplacian variance) per submitted photo; below threshold → drop that photo from the usable set rather than feeding a bad extraction into fusion
+- [x] **Confidence-gated response tiers**: define at least two response modes — "priced" (normal output) vs. "needs more info" (names the specific gap) — the UI (Phase 6) needs to render both, not just the happy path
 - [ ] This phase directly maps to judging criterion "Does it know its limits?" — treat it as core scope, not a stretch goal, and make sure at least one demo test case (Phase 7) deliberately triggers it
 
 ---
 
 ## Phase 5 — Backend API
 
-- [ ] `POST /predict` — accepts a submission from one guided capture session: the auto-snapped photos (3-7 typical) plus the one session video. Runs the pipeline on the photos only; stores the video as-is (e.g. to disk/blob storage) as an authenticity record — not processed now, but kept for a possible future forgery/liveness check. Also triggers Phase 2c: annotated (boxed) copies of any photo with localized damage are saved to `results/<submission_id>/`, as a local side effect — not returned in the response body. Returns a **price range + confidence score as the headline** (not a single point price):
+- [x] `POST /predict` — accepts a submission from one guided capture session: the auto-snapped photos (3-7 typical) plus the one session video. Runs the pipeline on the photos only; stores the video as-is (e.g. to disk/blob storage) as an authenticity record — not processed now, but kept for a possible future forgery/liveness check. Also triggers Phase 2c: annotated (boxed) copies of any photo with localized damage are saved to `results/<submission_id>/`, as a local side effect — not returned in the response body. Returns a **price range + confidence score as the headline** (not a single point price):
   ```json
   {
     "status": "priced",
@@ -199,8 +199,8 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
   }
   ```
   `breakdown.damage` stays a plain list of description strings here — the API response doesn't need to carry box coordinates or image paths, those live only in the local `results/` artifact above
-- [ ] Error handling: invalid file type, API timeout/rate limit
-- [ ] Wire the "needs more info" response tier from Phase 4e as a first-class API response shape (not an HTTP error) — e.g.:
+- [x] Error handling: invalid file type, API timeout/rate limit
+- [x] Wire the "needs more info" response tier from Phase 4e as a first-class API response shape (not an HTTP error) — e.g.:
   ```json
   {
     "status": "needs_more_info",
