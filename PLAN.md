@@ -41,7 +41,7 @@ Design principles:
 - **The recorded video and the snapped photos serve different, separate purposes.** Photos are the only thing that feeds the vision/pricing pipeline. The video exists purely as evidence the capture was a real live session (not a forged upload or stock photos) — it's stored as-is and not processed now. A later stretch could add automated liveness/forgery detection against the video, but that's explicitly out of scope for this build.
 - **Don't over-constrain the capture guidance to fixed named angles** (e.g. exactly one "front" shot, one "driver side" shot). We don't control, and don't know in advance, what angles a judge's own unseen photos will use when they test the system directly — so the guidance during capture should encourage broad coverage (move around the truck, get the tires, etc.) without hard-requiring a rigid per-angle checklist, and the pipeline (Phase 3 fusion, Phase 4e limits) must already tolerate a variable, unlabeled set of views rather than assuming named waypoints.
 - **The headline output is a price range + a confidence score, not a single point price.** A lone number reads as false precision for something priced off a handful of photos; the range and confidence are what the "why this price" explainability story is actually selling. An internal point estimate may still exist as an implementation detail (e.g. to compute the range), but it is never the primary thing shown or returned.
-- **Interior/cab damage is out of scope.** Don't require or rely on an interior photo — it may not be provided at all, and internal condition/damage isn't part of this build's pricing signal. Fusion and the "missing view" check should only consider exterior views.
+- **An interior/cabin photo is optional, offered (not required).** The exterior guided capture never requires or prompts for one mid-session — but right before Submit, the user is asked via a toggle whether they'd like to add one. If yes, that photo goes through the same extraction as any other photo and *does* feed into condition/pricing, tightening the estimate. If no, the estimate proceeds on exterior-only info with a **wider, more conservative range** (see Phase 4b) and the result explicitly says why the range is wide. Either way this is never a "missing view" refusal (Phase 4e) — an omitted interior photo is an accepted, priced outcome, just a less certain one.
 - The comps dataset and the query truck's photos are decoupled: comps only need one decent photo per listing for condition scoring, and don't need to match the query's capture angles (see Phase 1b note).
 - **The system must know its limits.** Per the challenge brief, confidently pricing a blurry photo, a non-truck, or a truck with missing critical views is a losing outcome — refusing or asking for a specific missing shot ("send me a shot of the tires") is explicitly called out as a feature, not a cop-out. See Phase 4e.
 
@@ -98,8 +98,11 @@ There is no image-vs-video choice for the user — capture is always one continu
 - [ ] While recording, a guide prompts the user to move around the truck (e.g. "walk to the front", "now the side", "get close to the tires") to encourage broad coverage — but this is guidance, not a rigid checklist: don't hard-require exactly one shot per named angle, since we don't know what angles a judge's own unseen test photos will use, and the pipeline (Phase 3, Phase 4e) is designed to work over however many views actually come in
 - [ ] Auto-snap a photo periodically or when framing looks good during the session (reuse the in-browser detector idea — confirm a truck is in frame, not too close/cut off — as the trigger), aiming for roughly 3-7 photos per session without hard-failing if the count comes out higher or lower
 - [ ] **Stop** button ends the recording
-- [ ] **Submit** button uploads both artifacts to the backend: the auto-snapped photos (for Phase 2b extraction) and the full session video (stored as-is, not processed for pricing)
-- [ ] **Interior/cab shots are out of scope** — the guide doesn't prompt for one, and a submission isn't penalized for not including it (internal damage isn't part of this build's pricing signal; see design principles above)
+- [ ] After Stop, before Submit: show a toggle/prompt asking "Add a photo of the interior/cabin?" — this is a separate, explicit step, not part of the live guided sequence (the guide itself never prompts for interior mid-session, and this photo is never part of the recorded video)
+  - If the user opts in, reveal a single-image upload control (plain file/camera picker, not the live guided-capture UI) for exactly one interior/cabin photo
+  - That uploaded photo is included in what's sent to the backend and does go through the same vision extraction as the other photos (see Phase 2b) — it's just captured via a different UI control, not through the video guide
+  - If the user opts out, proceed with exterior photos only — this is a normal, accepted path, not an error or a "needs more info" case
+- [ ] **Submit** button uploads to the backend: the auto-snapped exterior photos + the optional interior photo (if provided) + the full session video (stored as-is, not processed for pricing). Also send whether the user was offered/chose to include an interior photo (see Phase 5 `interior_included`) — the backend can't infer this from an unlabeled photo list on its own
 
 ### 2b. Vision extraction
 - [x] Write the structured-extraction prompt for the vision API:
@@ -134,7 +137,7 @@ Works across any number of usable views (3-7 typical) — not tied to a fixed co
 
 - [x] Make/model/year: majority vote across all extractions, or highest-confidence single view if votes are split
 - [x] Condition: take the *worst* (lowest) condition score seen across views — a single damaged panel shouldn't get diluted by clean views of other panels
-- [x] Damage list: union of all damage entries seen across views, deduped by description text (case-insensitive) — exterior damage only, per the interior-out-of-scope decision above. Each entry keeps its own `box` (or `null`) from whichever view reported it; boxes are only used for Phase 2c visualization on their source photo, never merged/reprojected across views
+- [ ] Damage list: union of all damage entries seen across views, deduped by description text (case-insensitive) — if an interior photo was included (Phase 2a), it's just one more view in this same union/worst-case fusion, no special-casing needed. Each entry keeps its own `box` (or `null`) from whichever view reported it; boxes are only used for Phase 2c visualization on their source photo, never merged/reprojected across views
 - [x] Tire condition: worst score seen across whichever views show the tires
 - [x] Output one fused JSON per upload, same schema as single-view extraction
 
@@ -155,12 +158,13 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 
 ### 4b. Option A — Hand-tuned formula (BUILD THIS FIRST)
 - [x] Look up `p_base` from `/data/base_prices.json` by (make, model, year)
-- [ ] Apply formula:
+- [x] Apply formula:
   ```
   price = p_base * (0.5 + 0.3*condition_score + 0.15*tire_score) * (1 - 0.05*damage_count)
   ```
 - [x] Sanity-check output against 3-5 known real listings, adjust coefficients if wildly off
 - [x] **Output a price range (e.g. ±15%) plus a confidence score — this is the headline result, not a single point price.** A point estimate may be computed internally to derive the range, but it is not the primary field surfaced to the user. Widen the range (and/or lower the confidence score) when extraction confidence is low
+- [ ] **Interior-photo range adjustment**: when no interior photo was provided (Phase 2a opt-out), widen the range *asymmetrically* — lower the low end further than usual, leave the high end closer to normal. Rationale: an unseen interior could hide damage that lowers value, but can't retroactively add value, so the extra uncertainty is a downside risk, not a symmetric unknown. When an interior photo *was* provided and analyzed, use the normal (narrower) range from the confidence-based logic above — more real signal, tighter estimate
 
 ### 4c. Option B — Learned regression (STRETCH, only if Phase 1d comps-with-features data exists)
 - [ ] Fit linear regression or small XGBoost on scraped comps: `price ~ condition_score + tire_score + damage_count + make/model/year bucket`
@@ -170,6 +174,7 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 ### 4d. Fallback handling
 - [x] Unknown/unrecognized make-model-year combo → fall back to a generic "truck" average price, flag low confidence
 - [x] Very low extraction confidence → widen the price range, surface a warning in the UI
+- [ ] No interior photo provided → widened range (Phase 4b) plus an explicit note in the response saying so (e.g. "No interior photo was provided, so this range is wider than usual") — this is a "priced, but here's why the range is wide" note, not a warning/error, and the frontend (Phase 6) must surface it in the results view
 
 ### 4e. Knowing its limits (required per challenge brief, not just error handling)
 - [x] **Not-a-truck detection**: if the VLM extraction indicates the subject isn't a truck (or confidence is near-zero on make/model), refuse to output a price — return a clear "this doesn't look like a truck" response instead of a number
@@ -182,23 +187,25 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 
 ## Phase 5 — Backend API
 
-- [x] `POST /predict` — accepts a submission from one guided capture session: the auto-snapped photos (3-7 typical) plus the one session video. Runs the pipeline on the photos only; stores the video as-is (e.g. to disk/blob storage) as an authenticity record — not processed now, but kept for a possible future forgery/liveness check. Also triggers Phase 2c: annotated (boxed) copies of any photo with localized damage are saved to `results/<submission_id>/`, as a local side effect — not returned in the response body. Returns a **price range + confidence score as the headline** (not a single point price):
+- [ ] `POST /predict` — accepts a submission from one guided capture session: the auto-snapped exterior photos (3-7 typical), an optional interior/cabin photo, an explicit `interior_included: bool` flag (Phase 2a — the backend can't infer this from an unlabeled photo list), and the one session video. Runs the pipeline on the photos (exterior + interior, if present) only; stores the video as-is (e.g. to disk/blob storage) as an authenticity record — not processed now, but kept for a possible future forgery/liveness check. Also triggers Phase 2c: annotated (boxed) copies of any photo with localized damage are saved to `results/<submission_id>/`, as a local side effect — not returned in the response body. Returns a **price range + confidence score as the headline** (not a single point price):
   ```json
   {
     "status": "priced",
     "price_range": [16172, 21880],
     "confidence": 0.72,
+    "notes": ["No interior photo was provided, so this range is wider than usual."],
     "breakdown": {
       "base_price": 28000,
       "make": "Ford", "model": "F-150", "year_estimate": "2018-2020",
       "condition": "fair",
       "damage": ["rust on rear fender", "cracked side mirror"],
       "tire_condition": "worn",
-      "views_used": 5
+      "views_used": 5,
+      "interior_included": false
     }
   }
   ```
-  `breakdown.damage` stays a plain list of description strings here — the API response doesn't need to carry box coordinates or image paths, those live only in the local `results/` artifact above
+  `breakdown.damage` stays a plain list of description strings here — the API response doesn't need to carry box coordinates or image paths, those live only in the local `results/` artifact above. `notes` is a list of human-readable, non-error explanations for anything about this specific result the user should know (currently just the interior-range case, but built as a list so more can be added later without a shape change) — `notes` is empty/omitted when there's nothing to flag
 - [x] Error handling: invalid file type, API timeout/rate limit
 - [x] Wire the "needs more info" response tier from Phase 4e as a first-class API response shape (not an HTTP error) — e.g.:
   ```json
@@ -218,9 +225,11 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 - [ ] **No upload picker, no mode choice** — the page opens straight into a live camera feed with Start / Stop / Submit controls (see Phase 2a); this replaces any drag-and-drop upload flow
 - [ ] Guide overlay during recording, prompting the user to move around the truck (loose guidance, not a rigid per-angle checklist — see Phase 2a)
 - [ ] Auto-snap indicator so the user can see photos being captured during the session
-- [ ] Submit sends both the snapped photos and the session video to the backend (Phase 5) in one request
+- [ ] After Stop, before Submit: interior/cabin toggle (see Phase 2a) — a plain single-image upload control appears only when toggled on, separate from the live guided-capture UI and never part of the recorded video
+- [ ] Submit sends the exterior photos, the optional interior photo, the `interior_included` flag, and the session video to the backend (Phase 5) in one request
 - [ ] Loading state after submit (show progress if possible)
 - [ ] Results view: headline is the **price range + confidence score** (not a single number), then the explainable breakdown (base price → condition → final), matching the "why this price" demo story
+- [ ] Surface `notes` from the response prominently near the range — e.g. when no interior photo was included, the wider range should visibly say why, not just look unexplained
 - [ ] **"Needs more info" view**: distinct from an error state — this is a successful, intended outcome per the brief, so design it to look deliberate (not a crash/broken page), e.g. "we need a clearer shot of X" with a way to add the missing photo and retry
 - [ ] Basic error states (bad upload, API failure) — kept separate from the "needs more info" case above, since one is a system limitation being handled gracefully and the other is a genuine error
 
@@ -251,7 +260,7 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 - Scraper scope: if time-constrained, limit to 3-5 common truck models (F-150, Silverado, Ram 1500, etc.) rather than all trucks, for better comps density per bucket
 - Legal/ethical note: scrape respectfully (rate limits, robots.txt, no auth bypass) — this is a hackathon demo, not a production scraping operation
 - In-browser detection library (Phase 2a): if TensorFlow.js/YOLO setup for the auto-snap trigger eats too much time, a simpler fallback (snap on a fixed timer instead of framing-based detection) is an acceptable substitute — don't let this polish block the core pipeline
-- Interior/cab photos are explicitly out of scope for this build (not required, not penalized if missing, not fused/priced on) — we don't know if interior images will even be provided, and internal damage isn't part of the pricing signal here
+- Interior/cab photos are optional, offered via a post-capture toggle (Phase 2a) — never required, never a "needs more info" refusal if skipped, but when included they're a real pricing input (Phase 3 fusion, Phase 4b range) that narrows the estimate. Skipping it is an accepted outcome with a wider, explicitly-explained range, not a degraded/error outcome
 - The session video is stored (disk/blob storage — mechanism TBD) purely as an authenticity record; no forgery/liveness detection is built against it in this pass, that's explicitly deferred to later
 - Capture guidance is intentionally loose about exact angles (see Phase 2a) — don't design the pipeline or the demo around an assumption that photos arrive in a fixed order or fixed named set
 - `results/` (Phase 2c annotated damage images) is a generated-artifact folder like `backend/uploads/` — gitignore it, don't commit its contents
