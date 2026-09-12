@@ -3,36 +3,129 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Camera Check</title>
+    <meta name="theme-color" content="#07111f" />
+    <title>Fleetworth — Guided Truck Capture</title>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
   </head>
   <body>
-    <main class="camera-card">
-      <p class="eyebrow">CAMERA CHECK</p>
-      <h1>Get ready</h1>
-      <p class="intro">Your camera preview opens automatically when this page loads.</p>
+    <main class="app-shell">
+      <header class="app-header">
+        <a class="brand" href="/" aria-label="Fleetworth home">
+          <span class="brand-mark" aria-hidden="true">FW</span>
+          <span>Fleetworth</span>
+        </a>
+        <div class="session-summary" aria-label="Capture progress">
+          <span id="headerProgress">0 of 7 views</span>
+          <span class="prototype-badge">Guided capture</span>
+        </div>
+      </header>
 
-      <section class="preview" aria-label="Webcam preview">
-        <video id="cameraPreview" autoplay playsinline muted></video>
-        <div id="cameraMessage" class="camera-message" role="status" aria-live="polite">
-          Requesting camera access…
+      <div class="workspace">
+        <aside class="waypoint-panel" aria-labelledby="waypointTitle">
+          <div class="panel-heading">
+            <p class="eyebrow">Inspection route</p>
+            <h2 id="waypointTitle">Required views</h2>
+            <p>Follow the route so every price signal has a clear frame.</p>
+          </div>
+          <ol id="waypointList" class="waypoint-list"></ol>
+          <div class="privacy-note">
+            <span class="privacy-icon" aria-hidden="true">●</span>
+            <p><strong>Photos stay in this browser</strong> in this frontend-only build.</p>
+          </div>
+        </aside>
+
+        <section class="capture-panel" aria-labelledby="captureTitle">
+          <div class="capture-heading">
+            <div>
+              <p id="stepLabel" class="eyebrow">Step 1 of 7</p>
+              <h1 id="captureTitle">Show the front</h1>
+              <p id="captureInstruction" class="capture-instruction"></p>
+            </div>
+            <div class="progress-ring" aria-hidden="true">
+              <span id="progressPercent">0%</span>
+            </div>
+          </div>
+
+          <div class="progress-track" aria-hidden="true">
+            <span id="progressBar"></span>
+          </div>
+
+          <section class="preview" aria-label="Live truck camera preview">
+            <video id="cameraPreview" autoplay playsinline muted></video>
+            <canvas id="detectionOverlay" aria-hidden="true"></canvas>
+            <div class="framing-guide" aria-hidden="true">
+              <i></i><i></i><i></i><i></i>
+            </div>
+            <div id="captureFlash" class="capture-flash" aria-hidden="true"></div>
+            <div id="cameraMessage" class="camera-message" role="status" aria-live="polite">
+              Requesting camera access…
+            </div>
+            <div id="frameStatus" class="frame-status is-loading" role="status" aria-live="polite">
+              <span class="status-dot" aria-hidden="true"></span>
+              <span id="frameStatusText">Loading framing assistant…</span>
+            </div>
+          </section>
+
+          <div class="shot-tip">
+            <span class="tip-label">Framing tip</span>
+            <p id="shotTip"></p>
+          </div>
+
+          <div class="camera-controls" aria-label="Camera controls">
+            <label class="camera-picker" for="cameraSelect">
+              <span>Camera</span>
+              <select id="cameraSelect" disabled>
+                <option value="">Detecting cameras…</option>
+              </select>
+            </label>
+            <button id="startButton" class="button button-secondary" type="button">Start camera</button>
+            <button id="stopButton" class="button button-secondary" type="button" disabled>Pause</button>
+          </div>
+
+          <div class="capture-actions">
+            <label class="auto-capture-toggle" for="autoCapture">
+              <input id="autoCapture" type="checkbox" checked />
+              <span class="toggle-track" aria-hidden="true"><span></span></span>
+              <span>
+                <strong>Auto-capture</strong>
+                <small>Takes the shot after framing is steady</small>
+              </span>
+            </label>
+            <button id="captureButton" class="button button-primary" type="button" disabled>
+              Capture shot
+            </button>
+          </div>
+          <p id="actionMessage" class="action-message" aria-live="polite"></p>
+        </section>
+      </div>
+
+      <section id="reviewPanel" class="review-panel" aria-labelledby="reviewTitle">
+        <div class="review-heading">
+          <div>
+            <p class="eyebrow">Selected keyframes</p>
+            <h2 id="reviewTitle">Review your inspection</h2>
+          </div>
+          <p id="reviewSummary">Capture each required view to continue.</p>
+        </div>
+        <div id="captureGrid" class="capture-grid"></div>
+        <div class="submit-row">
+          <button id="resetButton" class="button button-quiet" type="button" disabled>Start over</button>
+          <div class="submit-copy">
+            <strong id="submitHeading">7 views remaining</strong>
+            <span>Only selected keyframes are prepared for extraction.</span>
+          </div>
+          <button id="submitButton" class="button button-submit" type="button" disabled>
+            Finish capture
+          </button>
         </div>
       </section>
 
-      <div class="controls" aria-label="Camera controls">
-        <label class="camera-picker" for="cameraSelect">
-          <span>Webcam</span>
-          <select id="cameraSelect" disabled>
-            <option value="">Detecting cameras…</option>
-          </select>
-        </label>
-        <button id="startButton" class="button button-primary" type="button">Start</button>
-        <button id="stopButton" class="button" type="button" disabled>Stop</button>
-        <button id="submitButton" class="button button-submit" type="button">Submit</button>
-      </div>
-      <p id="actionMessage" class="action-message" aria-live="polite"></p>
+      <canvas id="captureCanvas" class="capture-canvas" aria-hidden="true"></canvas>
     </main>
 
-    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+    <script defer src="{{ url_for('static', filename='app.js') }}"></script>
   </body>
 </html>
