@@ -108,13 +108,23 @@ There is no image-vs-video choice for the user — capture is always one continu
   {
     "make": string, "model": string, "year_estimate": string (range ok),
     "trim": string, "condition": "excellent"|"good"|"fair"|"poor",
-    "visible_damage": [string], "tire_condition": "new"|"worn"|"bald",
+    "visible_damage": [
+      {"description": string, "box": [x_min, y_min, x_max, y_max] | null}
+    ],
+    "tire_condition": "new"|"worn"|"bald",
     "confidence": float 0-1
   }
   ```
+  `box` is normalized (0-1) image coordinates for that damage instance, or `null` if the model can't localize it — a description without a usable box should still be kept, just without a drawn box later (see 2c)
 - [ ] Test on 10+ sample images (mix from scraped data), iterate prompt until reliably valid + reasonably accurate
 - [ ] Wrap API call with JSON parsing + validation, handle malformed responses (retry once, then fallback to "unknown")
 - [ ] Run one extraction call per auto-snapped photo only (~3-7 calls per truck) — the stored video is never sampled into frames or fed into extraction
+
+### 2c. Damage visualization (bounding boxes)
+- [ ] For each photo with at least one localized damage entry (has a non-null `box`), draw a rectangle on a copy of that photo at the box coordinates (OpenCV `cv2.rectangle`, or any equivalent — implementation is flexible) and label it with the damage description
+- [ ] Save each annotated photo locally to a `results/` folder in the project (e.g. `results/<submission_id>/<photo_name>_annotated.jpg`), so the team can visually review flagged damage without digging through raw JSON
+- [ ] This is a visualization/demo aid, not a pricing input — a missing, `null`, or inaccurate box never blocks or changes pricing (Phase 4 still only uses the damage *count* and description list, unaffected by this)
+- [ ] Set expectations accordingly: a general-purpose VLM's box coordinates are rougher than a purpose-built object detector — good enough to point at "roughly here," not a precise measurement, and that's fine for what this is used for
 
 ---
 
@@ -124,7 +134,7 @@ Works across any number of usable views (3-7 typical) — not tied to a fixed co
 
 - [ ] Make/model/year: majority vote across all extractions, or highest-confidence single view if votes are split
 - [ ] Condition: take the *worst* (lowest) condition score seen across views — a single damaged panel shouldn't get diluted by clean views of other panels
-- [ ] Damage list: union of all damage flags seen across views (dedupe similar entries) — exterior damage only, per the interior-out-of-scope decision above
+- [ ] Damage list: union of all damage entries seen across views, deduped by description text (case-insensitive) — exterior damage only, per the interior-out-of-scope decision above. Each entry keeps its own `box` (or `null`) from whichever view reported it; boxes are only used for Phase 2c visualization on their source photo, never merged/reprojected across views
 - [ ] Tire condition: worst score seen across whichever views show the tires
 - [ ] Output one fused JSON per upload, same schema as single-view extraction
 
@@ -136,7 +146,7 @@ Note: nothing in this phase trains a vision model. Option A is pure arithmetic a
 
 ### 4a. Feature encoding
 - [ ] Map categorical condition/tire values to numeric scores (see below)
-- [ ] Count damage flags
+- [ ] Count damage flags — `damage_count` is just `len(visible_damage)`, unaffected by whether an individual entry has a drawn box (Phase 2c) or not
 
 ```python
 condition_map = {"excellent": 1.0, "good": 0.8, "fair": 0.55, "poor": 0.3}
@@ -172,7 +182,7 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 
 ## Phase 5 — Backend API
 
-- [ ] `POST /predict` — accepts a submission from one guided capture session: the auto-snapped photos (3-7 typical) plus the one session video. Runs the pipeline on the photos only; stores the video as-is (e.g. to disk/blob storage) as an authenticity record — not processed now, but kept for a possible future forgery/liveness check. Returns a **price range + confidence score as the headline** (not a single point price):
+- [ ] `POST /predict` — accepts a submission from one guided capture session: the auto-snapped photos (3-7 typical) plus the one session video. Runs the pipeline on the photos only; stores the video as-is (e.g. to disk/blob storage) as an authenticity record — not processed now, but kept for a possible future forgery/liveness check. Also triggers Phase 2c: annotated (boxed) copies of any photo with localized damage are saved to `results/<submission_id>/`, as a local side effect — not returned in the response body. Returns a **price range + confidence score as the headline** (not a single point price):
   ```json
   {
     "status": "priced",
@@ -188,6 +198,7 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
     }
   }
   ```
+  `breakdown.damage` stays a plain list of description strings here — the API response doesn't need to carry box coordinates or image paths, those live only in the local `results/` artifact above
 - [ ] Error handling: invalid file type, API timeout/rate limit
 - [ ] Wire the "needs more info" response tier from Phase 4e as a first-class API response shape (not an HTTP error) — e.g.:
   ```json
@@ -243,3 +254,5 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 - Interior/cab photos are explicitly out of scope for this build (not required, not penalized if missing, not fused/priced on) — we don't know if interior images will even be provided, and internal damage isn't part of the pricing signal here
 - The session video is stored (disk/blob storage — mechanism TBD) purely as an authenticity record; no forgery/liveness detection is built against it in this pass, that's explicitly deferred to later
 - Capture guidance is intentionally loose about exact angles (see Phase 2a) — don't design the pipeline or the demo around an assumption that photos arrive in a fixed order or fixed named set
+- `results/` (Phase 2c annotated damage images) is a generated-artifact folder like `backend/uploads/` — gitignore it, don't commit its contents
+- Damage bounding boxes (Phase 2c) are a demo/explainability aid, not a measurement — implementation is flexible (OpenCV or otherwise), and box accuracy has no bearing on pricing correctness
