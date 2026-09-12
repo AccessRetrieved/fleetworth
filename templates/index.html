@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Camera Check</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <main class="camera-card">
+      <p class="eyebrow">CAMERA CHECK</p>
+      <h1>Get ready</h1>
+      <p class="intro">Your camera preview opens automatically when this page loads.</p>
+
+      <section class="preview" aria-label="Webcam preview">
+        <video id="cameraPreview" autoplay playsinline muted></video>
+        <div id="cameraMessage" class="camera-message" role="status" aria-live="polite">
+          Requesting camera access…
+        </div>
+      </section>
+
+      <div class="controls" aria-label="Camera controls">
+        <button id="startButton" class="button button-primary" type="button">Start</button>
+        <button id="stopButton" class="button" type="button" disabled>Stop</button>
+        <button id="submitButton" class="button button-submit" type="button">Submit</button>
+      </div>
+      <p id="actionMessage" class="action-message" aria-live="polite"></p>
+    </main>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+  </body>
+</html>
