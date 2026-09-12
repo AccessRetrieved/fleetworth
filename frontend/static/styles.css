@@ -66,7 +66,6 @@ h2 { font-size: 1.25rem; letter-spacing: -0.02em; margin-bottom: 8px; }
 .guide-item small { font-size: 0.72rem; line-height: 1.35; margin-top: 2px; }
 .guide-item.is-current { background: rgba(122, 200, 255, 0.09); border-color: rgba(122, 200, 255, 0.22); color: var(--ink); }
 .guide-item.is-current > span { background: var(--blue); border-color: var(--blue); color: #07111f; }
-.guide-item.is-complete > span { background: var(--accent); border-color: var(--accent); color: #07111f; }
 .capture-rules { align-items: center; background: rgba(105, 219, 186, 0.06); border-top: 1px solid var(--line); display: flex; gap: 12px; margin: 18px -24px -24px; padding: 16px 24px; }
 .capture-rules > span { color: var(--accent); font-size: 1.25rem; font-weight: 900; letter-spacing: -0.04em; }
 .capture-rules p { color: var(--muted); font-size: 0.74rem; line-height: 1.4; margin: 0; }
@@ -150,6 +149,12 @@ h2 { font-size: 1.25rem; letter-spacing: -0.02em; margin-bottom: 8px; }
 .submit-copy strong { font-size: 0.88rem; }
 .submit-copy span { color: var(--muted); font-size: 0.75rem; margin-top: 3px; }
 .capture-canvas { display: none; }
+.session-video-review { align-items: start; background: #091422; border: 1px solid var(--line); border-radius: 14px; display: grid; gap: 22px; grid-template-columns: minmax(190px, 0.65fr) minmax(0, 1.35fr); margin-top: 22px; padding: 18px; }
+.session-video-review[hidden] { display: none; }
+.session-video-copy { align-self: center; }
+.session-video-copy h2 { margin-bottom: 8px; }
+.session-video-copy p:last-child { color: var(--muted); font-size: 0.8rem; line-height: 1.5; margin: 0; }
+.session-video-review video { aspect-ratio: 16 / 9; background: #02070d; border: 1px solid #233c55; border-radius: 10px; display: block; max-height: 360px; object-fit: contain; width: 100%; }
 .result-panel { background: rgba(13, 26, 43, 0.94); border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.2); margin-top: 24px; padding: clamp(20px, 3vw, 32px); }
 .result-panel.is-hidden { display: none; }
 .result-panel > p:not(.eyebrow) { color: var(--muted); line-height: 1.5; margin-bottom: 0; }
@@ -183,6 +188,7 @@ h2 { font-size: 1.25rem; letter-spacing: -0.02em; margin-bottom: 8px; }
   .review-heading { align-items: start; flex-direction: column; }
   .submit-row { grid-template-columns: 1fr auto; }
   .submit-copy { grid-column: 1 / -1; grid-row: 1; }
+  .session-video-review { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -10,7 +10,8 @@ const GUIDE_STEPS = [
 const MIN_PHOTOS = 3;
 const TARGET_PHOTOS = 7;
 const ANALYSIS_INTERVAL_MS = 600;
-const AUTO_CAPTURE_DELAY_MS = 1800;
+const AUTO_CAPTURE_DELAY_MS = 10000;
+const GUIDE_STEP_DURATION_MS = 12000;
 const MIN_VEHICLE_SCORE = 0.42;
 const VEHICLE_CLASSES = new Set(["truck", "car", "bus"]);
 
@@ -42,6 +43,9 @@ const reviewSummary = document.querySelector("#reviewSummary");
 const submitHeading = document.querySelector("#submitHeading");
 const submitDetail = document.querySelector("#submitDetail");
 const resultPanel = document.querySelector("#resultPanel");
+const sessionVideoReview = document.querySelector("#sessionVideoReview");
+const sessionPlayback = document.querySelector("#sessionPlayback");
+const sessionVideoMeta = document.querySelector("#sessionVideoMeta");
 
 const captures = [];
 let cameraStream;
@@ -55,14 +59,16 @@ let mediaRecorder;
 let mediaChunks = [];
 let sessionVideo;
 let sessionVideoUrl;
+let sessionDurationMs = 0;
 let recordingStartedAt;
 let analysisTimer;
 let clockTimer;
 let stableSince = 0;
+let suggestionIndex = 0;
 let currentAssessment = { ready: false, type: "loading", message: "Loading framing assistant…", confidence: 0 };
 
 function guideIndex() {
-  return Math.min(captures.length, GUIDE_STEPS.length - 1);
+  return suggestionIndex;
 }
 
 function currentGuide() {
@@ -99,15 +105,14 @@ function renderGuide() {
     const item = document.createElement("li");
     item.className = "guide-item";
     item.classList.toggle("is-current", index === guideIndex() && isRecording);
-    item.classList.toggle("is-complete", index < guideIndex());
-    item.innerHTML = `<span>${index < guideIndex() ? "✓" : index + 1}</span><div><strong>${step.title}</strong><small>${step.instruction}</small></div>`;
+    item.innerHTML = `<span>${index + 1}</span><div><strong>${step.title}</strong><small>${step.instruction}</small></div>`;
     guideList.append(item);
   });
 }
 
 function renderCurrentGuide() {
   const guide = currentGuide();
-  stepLabel.textContent = isRecording ? `Live guide · photo ${captures.length + 1}` : "Camera check";
+  stepLabel.textContent = isRecording ? `Optional suggestion ${guideIndex() + 1} of ${GUIDE_STEPS.length} · ${captures.length} ${captures.length === 1 ? "photo" : "photos"}` : "Camera check";
   captureTitle.textContent = isRecording ? guide.title : "Start a live walkaround";
   captureInstruction.textContent = isRecording
     ? guide.instruction
@@ -150,11 +155,18 @@ function renderReview() {
   const ready = enoughPhotos && sessionVideo;
   reviewSummary.textContent = isRecording
     ? `${count} snapped ${count === 1 ? "photo" : "photos"} so far. Keep walking for broad coverage.`
-    : `${count} of ${MIN_PHOTOS} minimum photos${sessionVideo ? " and a recorded session" : ""}.`;
+    : count
+      ? `${count} ${count === 1 ? "photo" : "photos"} captured${sessionVideo ? " with a recorded session" : ""}${enoughPhotos ? " · minimum met" : ` · ${MIN_PHOTOS - count} more needed`}.`
+      : "Start a session to collect 3–7 photos.";
   submitHeading.textContent = ready ? "Capture evidence is ready" : sessionVideo ? "Restart to collect enough photos" : "Stop the session to finalize video";
   submitDetail.textContent = "Photos feed visual extraction. The session video is kept separately as a live-capture record.";
   resetButton.disabled = !captures.length && !sessionVideo && !isRecording;
   submitButton.disabled = !ready || isRecording;
+  sessionVideoReview.hidden = !sessionVideoUrl;
+  if (sessionVideoUrl) {
+    if (sessionPlayback.src !== sessionVideoUrl) sessionPlayback.src = sessionVideoUrl;
+    sessionVideoMeta.textContent = `${formatDuration(sessionDurationMs)} · ${(sessionVideo.size / 1024 / 1024).toFixed(1)} MB · kept separate from pricing analysis.`;
+  }
   renderCaptures();
 }
 
@@ -325,7 +337,15 @@ function startClock() {
   window.clearInterval(clockTimer);
   recordingStartedAt = Date.now();
   recordingTime.textContent = "00:00";
-  clockTimer = window.setInterval(() => { recordingTime.textContent = formatDuration(Date.now() - recordingStartedAt); }, 1000);
+  clockTimer = window.setInterval(() => {
+    const elapsed = Date.now() - recordingStartedAt;
+    recordingTime.textContent = formatDuration(elapsed);
+    const nextSuggestion = Math.min(Math.floor(elapsed / GUIDE_STEP_DURATION_MS), GUIDE_STEPS.length - 1);
+    if (nextSuggestion !== suggestionIndex) {
+      suggestionIndex = nextSuggestion;
+      renderCurrentGuide();
+    }
+  }, 1000);
 }
 
 function stopClock() {
@@ -380,6 +400,7 @@ function startSession() {
   clearResult();
   mediaChunks = [];
   sessionVideo = undefined;
+  sessionDurationMs = 0;
   if (sessionVideoUrl) URL.revokeObjectURL(sessionVideoUrl);
   sessionVideoUrl = undefined;
   try {
@@ -391,6 +412,7 @@ function startSession() {
   mediaRecorder.addEventListener("dataavailable", (event) => { if (event.data.size) mediaChunks.push(event.data); });
   mediaRecorder.addEventListener("stop", () => {
     const type = mediaRecorder.mimeType || "video/webm";
+    sessionDurationMs = Date.now() - recordingStartedAt;
     sessionVideo = new Blob(mediaChunks, { type });
     sessionVideoUrl = URL.createObjectURL(sessionVideo);
     isRecording = false;
@@ -405,6 +427,7 @@ function startSession() {
   }, { once: true });
   mediaRecorder.start(1000);
   isRecording = true;
+  suggestionIndex = 0;
   startButton.disabled = true;
   stopButton.disabled = false;
   cameraSelect.disabled = true;
@@ -437,7 +460,9 @@ async function captureFrame({ automatic = false } = {}) {
     captureFlash.classList.remove("is-active");
     void captureFlash.offsetWidth;
     captureFlash.classList.add("is-active");
-    actionMessage.textContent = `Photo ${captures.length} snapped${automatic ? " automatically" : ""}.`;
+    actionMessage.textContent = captures.length === TARGET_PHOTOS
+      ? `Photo ${captures.length} snapped${automatic ? " automatically" : ""}. Maximum reached—finish the walkaround, then stop the session.`
+      : `Photo ${captures.length} snapped${automatic ? " automatically" : ""}. Move to another useful view.`;
     renderAll();
   } catch {
     actionMessage.textContent = "That frame could not be saved. Hold steady and try again.";
@@ -458,7 +483,7 @@ function removeCapture(id) {
 }
 
 function buildManifest() {
-  return { schema_version: "2.0", captured_at: new Date().toISOString(), photo_count: captures.length, session_video: { filename: sessionVideoFilename(), type: sessionVideo?.type, size: sessionVideo?.size }, photos: captures.map((capture, index) => ({ id: capture.id, filename: `capture-${index + 1}.jpg`, captured_at: capture.capturedAt, width: capture.width, height: capture.height, detector_confidence: capture.detectorConfidence })) };
+  return { schema_version: "2.0", captured_at: new Date().toISOString(), photo_count: captures.length, session_video: { filename: sessionVideoFilename(), type: sessionVideo?.type, size: sessionVideo?.size, duration_ms: sessionDurationMs }, photos: captures.map((capture, index) => ({ id: capture.id, filename: `capture-${index + 1}.jpg`, captured_at: capture.capturedAt, width: capture.width, height: capture.height, detector_confidence: capture.detectorConfidence })) };
 }
 
 function buildFormData() {
@@ -514,7 +539,13 @@ function resetSession() {
   if (sessionVideoUrl) URL.revokeObjectURL(sessionVideoUrl);
   sessionVideo = undefined;
   sessionVideoUrl = undefined;
+  sessionDurationMs = 0;
   mediaChunks = [];
+  sessionPlayback.pause();
+  sessionPlayback.removeAttribute("src");
+  sessionPlayback.load();
+  sessionVideoReview.hidden = true;
+  suggestionIndex = 0;
   recordingTime.textContent = "00:00";
   startButton.disabled = !cameraStream;
   clearResult();

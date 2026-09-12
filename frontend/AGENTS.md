@@ -20,9 +20,9 @@ The vision model extracts observable facts only; it must never generate the pric
 The frontend owns one camera-only live walkaround. Do not add an upload picker or a capture-mode toggle.
 
 - **Start session** begins a browser `MediaRecorder` session video and enables capture.
-- A flexible guide suggests wide, front, side, rear, tire, and remaining exterior coverage. It is deliberately not a fixed-angle checklist.
-- While recording, auto-snap may collect clear frames and the user may manually snap them. Keep 3–7 photos; the first three are the minimum, the rest improve coverage.
-- **Stop session** finalizes the original recording. The video is a live-capture/authenticity record and must not be used by pricing or visual extraction.
+- A flexible guide suggests wide, front, side, rear, tire, and remaining exterior coverage. It is deliberately not a fixed-angle checklist. Never mark suggestions complete based on photo count or imply that the detector verified an angle.
+- While recording, auto-snap may collect clear frames and the user may manually snap them. Keep 3–7 photos; the first three are the minimum, the rest improve coverage. Leave enough auto-capture delay for the user to walk to a meaningfully different view.
+- **Stop session** finalizes the original recording. Show the finished recording in the review area. The video is a live-capture/authenticity record and must not be used by pricing or visual extraction.
 - **Submit** sends the 3–7 photos and finalized video together. The UI must have loading, priced, error, and `needs_more_info` states.
 
 Internal appearance and internal damage explicitly do not matter under the organizer's latest direction. Do not add cab-interior capture or any internal-condition scoring unless that direction changes.

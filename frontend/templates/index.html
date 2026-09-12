@@ -17,13 +17,13 @@
 
       <div class="workspace">
         <aside class="guide-panel" aria-labelledby="guideTitle">
-          <p class="eyebrow">Live capture</p>
-          <h2 id="guideTitle">Walk around the truck</h2>
-          <p class="guide-copy">One continuous session creates the evidence set. The guide helps coverage; it does not require fixed angles.</p>
+          <p class="eyebrow">Suggested coverage</p>
+          <h2 id="guideTitle">Helpful views to include</h2>
+          <p class="guide-copy">These are ideas, not verified checkpoints. Move naturally around the truck and use whichever angles show it clearly.</p>
           <ol id="guideList" class="guide-list"></ol>
           <div class="capture-rules">
             <span>3–7</span>
-            <p><strong>Snapped photos</strong> feed the price model. The session video is retained separately as a live-capture record.</p>
+            <p><strong>Clear photos</strong> feed the price model. Suggestions do not need to match the number of photos.</p>
           </div>
         </aside>
 
@@ -56,7 +56,7 @@
           </div>
 
           <div class="capture-actions">
-            <label class="auto-capture-toggle" for="autoCapture"><input id="autoCapture" type="checkbox" checked /><span class="toggle-track"><span></span></span><span><strong>Auto-snap clear frames</strong><small>Only while the session is recording</small></span></label>
+            <label class="auto-capture-toggle" for="autoCapture"><input id="autoCapture" type="checkbox" checked /><span class="toggle-track"><span></span></span><span><strong>Auto-snap clear frames</strong><small>Waits about 10 seconds between clear shots</small></span></label>
             <button id="captureButton" class="button button-secondary" type="button" disabled>Snap photo</button>
           </div>
           <p id="actionMessage" class="action-message" aria-live="polite"></p>
@@ -66,6 +66,14 @@
       <section class="review-panel" aria-labelledby="reviewTitle">
         <div class="review-heading"><div><p class="eyebrow">Session evidence</p><h2 id="reviewTitle">Review snapped photos</h2></div><p id="reviewSummary">Start a session to collect 3–7 photos.</p></div>
         <div id="captureGrid" class="capture-grid"></div>
+        <section id="sessionVideoReview" class="session-video-review" hidden aria-labelledby="sessionVideoTitle">
+          <div class="session-video-copy">
+            <p class="eyebrow">Authenticity record</p>
+            <h2 id="sessionVideoTitle">Review session recording</h2>
+            <p id="sessionVideoMeta">The recording is kept separate from pricing analysis.</p>
+          </div>
+          <video id="sessionPlayback" controls playsinline preload="metadata"></video>
+        </section>
         <div class="submit-row">
           <button id="resetButton" class="button button-quiet" type="button" disabled>Discard session</button>
           <div class="submit-copy"><strong id="submitHeading">No recording yet</strong><span id="submitDetail">Finish a live session before sending evidence.</span></div>
