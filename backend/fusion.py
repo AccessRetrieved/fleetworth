@@ -48,14 +48,18 @@ def _majority_or_highest_confidence(extractions: list[dict], key: str) -> str:
     return best[key]
 
 
-def _dedupe_damage(all_damage: list[str]) -> list[str]:
+def _dedupe_damage(all_damage: list[dict]) -> list[dict]:
+    """Dedupe by description (case-insensitive). Boxes are per-source-photo
+    coordinates (see module docstring) — kept as-is on whichever entry wins
+    the dedupe, never merged/reprojected across views."""
     seen = set()
     deduped = []
     for d in all_damage:
-        key = d.strip().lower()
+        description = (d.get("description") or "").strip()
+        key = description.lower()
         if key and key not in seen:
             seen.add(key)
-            deduped.append(d.strip())
+            deduped.append({"description": description, "box": d.get("box")})
     return deduped
 
 

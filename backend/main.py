@@ -56,7 +56,7 @@ async def predict(photos: list[UploadFile] = File(...), video: UploadFile = File
     video_path.write_bytes(await video.read())
 
     try:
-        result = run_pipeline(photo_bytes)
+        result = run_pipeline(photo_bytes, submission_id=submission_id)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Pipeline error: {e}")
 

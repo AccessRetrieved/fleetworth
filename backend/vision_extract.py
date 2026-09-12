@@ -30,7 +30,9 @@ EXTRACTION_PROMPT = """Given this image, return ONLY valid JSON (no markdown, no
   "year_estimate": string,
   "trim": string,
   "condition": "excellent" | "good" | "fair" | "poor",
-  "visible_damage": [string],
+  "visible_damage": [
+    {"description": string, "box": [x_min, y_min, x_max, y_max] | null}
+  ],
   "tires_visible": boolean,
   "tire_condition": "new" | "worn" | "bald",
   "confidence": float between 0 and 1
@@ -41,7 +43,7 @@ Rules:
 - is_real_photo: true only if this is a real-world photograph of a physical truck. False if the image is a video game screenshot, CGI render, 3D model, illustration/drawing, toy/model truck, or a photo of a screen/poster/advertisement showing a truck. Be strict here — a photorealistic render or game screenshot still counts as false.
 - If is_truck or is_real_photo is false, still fill in the other fields with your best guess or "unknown", but set confidence low (below 0.2).
 - year_estimate may be a single year or a range (e.g. "2018-2020") if you're not certain.
-- visible_damage should be an empty array if no damage is visible, otherwise short descriptive strings (e.g. "rust on rear fender", "cracked side mirror", "dent on tailgate").
+- visible_damage should be an empty array if no damage is visible. Otherwise each entry has a short "description" (e.g. "rust on rear fender", "cracked side mirror", "dent on tailgate") and a "box": your best-effort bounding box for where that damage is in THIS image, as [x_min, y_min, x_max, y_max] normalized to 0-1 (0,0 is top-left, 1,1 is bottom-right). If you can't localize a specific damage instance, set "box" to null but still include the description.
 - tires_visible: true only if at least one tire/wheel is clearly visible and you can actually judge its condition from this photo. If tires aren't visible or are too small/obscured to assess, set this false — in that case tire_condition should still be your best guess, but it will be ignored by the pipeline.
 - confidence reflects how confident you are in make/model/year identification, not condition.
 - If you cannot identify the make/model at all, use "unknown" for those fields and lower confidence accordingly.
@@ -57,6 +59,32 @@ VALID_TIRE = {"new", "worn", "bald"}
 
 class ExtractionError(Exception):
     pass
+
+
+def _normalize_damage_entry(entry) -> dict:
+    """Coerce one visible_damage entry into {"description": str, "box": [4
+    floats] | None}. Tolerant of a plain string (older schema / model
+    slip-up) and of a malformed box, rather than failing the whole
+    extraction over one bad damage entry."""
+    if isinstance(entry, str):
+        return {"description": entry, "box": None}
+    if not isinstance(entry, dict):
+        raise ExtractionError(f"invalid visible_damage entry: {entry!r}")
+
+    description = str(entry.get("description", "")).strip()
+    if not description:
+        raise ExtractionError(f"visible_damage entry missing description: {entry!r}")
+
+    box = entry.get("box")
+    if box is not None:
+        try:
+            box = [float(v) for v in box]
+        except (TypeError, ValueError):
+            box = None
+        if box is not None and (len(box) != 4 or not all(0.0 <= v <= 1.0 for v in box)):
+            box = None
+
+    return {"description": description, "box": box}
 
 
 def _client() -> OpenAI:
@@ -99,6 +127,7 @@ def _parse_and_validate(raw_text: str) -> dict:
         raise ExtractionError(f"invalid tire_condition: {data['tire_condition']!r}")
     if not isinstance(data["visible_damage"], list):
         raise ExtractionError("visible_damage must be a list")
+    data["visible_damage"] = [_normalize_damage_entry(d) for d in data["visible_damage"]]
     if not isinstance(data["is_truck"], bool):
         raise ExtractionError("is_truck must be a boolean")
     if not isinstance(data["is_real_photo"], bool):

@@ -80,7 +80,7 @@ def compute_price(extraction: dict) -> dict:
             "model": model,
             "year_estimate": year_estimate,
             "condition": condition,
-            "damage": visible_damage,
+            "damage": [d.get("description", str(d)) if isinstance(d, dict) else d for d in visible_damage],
             "tire_condition": tire_condition,
             "views_used": extraction.get("views_used"),
             "multiplier_applied": round(multiplier, 4),
