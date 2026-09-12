@@ -1,6 +1,13 @@
-"""Sanity-check the vision extraction module against real scraped images."""
+"""Sanity-check the vision extraction module against real scraped images.
+
+Usage:
+    uv run python test_extraction.py                  # 10-sample dataset test (default)
+    uv run python test_extraction.py path/to/image.jpg # run extraction on just this one image
+    uv run python test_extraction.py https://...       # also works with a URL
+"""
 import json
 import random
+import sys
 from pathlib import Path
 
 from vision_extract import extract_from_image, _client
@@ -15,7 +22,18 @@ def upsize(url: str) -> str:
     return url.replace("w=250&h=220", "w=1024&h=768").replace("sz=Cover", "sz=Max")
 
 
-def main():
+def run_single(image_path: str):
+    """Run extraction on one user-specified image (local path or URL) and
+    just print the raw result — no ground truth to compare against."""
+    client = _client()
+    result = extract_from_image(image_path, client=client)
+    print("=" * 80)
+    print(f"IMAGE: {image_path}")
+    print("EXTRACTED:")
+    print(json.dumps(result, indent=2))
+
+
+def run_dataset_sample():
     rows = [json.loads(l) for l in DATA_PATH.open()]
     random.seed(42)
     sample = random.sample(rows, 10)
@@ -35,6 +53,13 @@ def main():
 
     print("=" * 80)
     print(f"Make matched ground truth: {correct_make}/{len(sample)}")
+
+
+def main():
+    if len(sys.argv) > 1:
+        run_single(sys.argv[1])
+    else:
+        run_dataset_sample()
 
 
 if __name__ == "__main__":
