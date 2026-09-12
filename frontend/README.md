@@ -6,7 +6,7 @@ Fleetworth is a 54 Hackathon FA26 prototype that estimates a used truck's price 
 
 The user opens the live camera, starts a continuous recording session, then walks around the truck with a loose on-screen guide: wide view, front, sides, rear, tires, and any other useful exterior view. The guide offers its next suggestion only after a photo is successfully saved, so it never runs ahead while the camera is pointed away. These prompts are still unverified recommendations, not capture slots, and advancing does not claim that an angle was recognized or completed.
 
-During the recording, the app collects **3–7 JPEG exterior photos**, waiting about ten seconds of clear framing between automatic captures so the user can move. After Stop, the user can optionally add exactly one cabin photo through a separate picker. Exterior and optional cabin photos feed future extraction and pricing. The continuous session video is retained separately as a live-capture/authenticity record, shown for review after recording, and is not analysed for the price.
+During the recording, the app collects **3–7 JPEG exterior photos**, waiting about ten seconds of clear framing between automatic captures so the user can move. Exterior photos feed future extraction and pricing; interior/cab photos are out of scope. The continuous session video is retained separately as a live-capture/authenticity record, shown for review after recording, and is not analysed for the price.
 
 COCO-SSD runs locally in TensorFlow.js to check broad framing. It accepts `truck`, `car`, or `bus` detections because pickup trucks are not classified consistently. It warns when the vehicle is absent, clipped, too small, poorly lit, or blurry. When the detector cannot load, auto-snap is disabled and the user can manually snap frames after local sharpness and lighting checks.
 
@@ -14,11 +14,9 @@ Captured media stays in browser memory until the user submits. `window.Fleetwort
 
 - `manifest`: `manifest.json` with photo metadata and video metadata
 - `photos`: repeated exterior JPEG fields, named `capture-<n>.jpg`
-- `interior_included`: explicit `true` or `false`
-- `interior_photo`: optional single cabin image, named `interior.jpg`, `interior.png`, or `interior.webp`
-- `session_video`: the original browser-recorded session video
+- `video`: the original browser-recorded session video
 
-With no API endpoint configured, Submit produces an in-browser “Evidence package ready” handoff state and dispatches the `fleetworth:capture-ready` event. Set `data-predict-endpoint` on the page body when FastAPI is ready; the app will POST the same form data to it. Priced responses render the price range and confidence first, followed by response `notes` and the explainable breakdown. `needs_more_info` responses stay distinct from failures and lead into a focused recapture.
+`data-predict-endpoint` on the page body points at the FastAPI `POST /predict` route (default `http://127.0.0.1:8000/predict`); Submit POSTs the form data there and also dispatches the `fleetworth:capture-ready` event. If the attribute is emptied, Submit instead shows an in-browser “Evidence package ready” handoff state. Priced responses render the price range and confidence first, followed by response `notes` and the explainable breakdown. `needs_more_info` responses stay distinct from failures and lead into a focused recapture.
 
 ## Run locally
 
@@ -37,5 +35,3 @@ The TensorFlow.js and COCO-SSD scripts are pinned and loaded from jsDelivr; mode
 ## Current boundary
 
 This frontend does not call a vision API, infer price, save media, or implement a backend route. It produces the session evidence package needed by the next pipeline stage.
-
-The cabin photo is optional. Omitting it never blocks submission; the pricing service can instead return a wider, downside-conscious range and explain that choice through `notes`.

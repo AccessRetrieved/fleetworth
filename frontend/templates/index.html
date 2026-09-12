@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
   </head>
-  <body data-predict-endpoint="">
+  <body data-predict-endpoint="http://127.0.0.1:8000/predict">
     <main class="app-shell">
       <header class="app-header">
         <a class="brand" href="/" aria-label="Fleetworth home"><span class="brand-mark">FW</span>Fleetworth</a>
@@ -72,33 +72,6 @@
             <p id="sessionVideoMeta">The recording is kept separate from pricing analysis.</p>
           </div>
           <video id="sessionPlayback" controls playsinline preload="metadata"></video>
-        </section>
-        <section id="interiorOption" class="interior-option" hidden aria-labelledby="interiorTitle">
-          <div class="interior-heading">
-            <div>
-              <p class="eyebrow">Optional final step</p>
-              <h2 id="interiorTitle">Add a photo of the interior/cabin?</h2>
-              <p>A cabin photo gives the model more condition evidence and can tighten the estimate. Skipping it is okay; the result may use a wider range.</p>
-            </div>
-            <label class="choice-toggle" for="interiorIncluded">
-              <input id="interiorIncluded" type="checkbox" />
-              <span class="toggle-track" aria-hidden="true"><span></span></span>
-              <span id="interiorChoiceLabel">No, continue without one</span>
-            </label>
-          </div>
-          <div id="interiorUpload" class="interior-upload" hidden>
-            <label class="interior-file" for="interiorPhotoInput">
-              <span class="interior-file-icon" aria-hidden="true">+</span>
-              <span><strong>Choose one cabin photo</strong><small>Use the camera or select a JPEG, PNG, or WebP image.</small></span>
-              <input id="interiorPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" />
-            </label>
-            <article id="interiorPreview" class="interior-preview" hidden>
-              <img id="interiorPreviewImage" alt="Selected cabin photo" />
-              <div><strong id="interiorFileName"></strong><small>Included in visual extraction, but outside the recorded walkaround.</small></div>
-              <button id="removeInteriorButton" class="button button-quiet" type="button">Remove</button>
-            </article>
-            <p id="interiorMessage" class="field-message" role="status" aria-live="polite"></p>
-          </div>
         </section>
         <div class="submit-row">
           <button id="resetButton" class="button button-quiet" type="button" disabled>Discard session</button>
