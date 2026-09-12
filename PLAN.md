@@ -137,7 +137,7 @@ Works across any number of usable views (3-7 typical) — not tied to a fixed co
 
 - [x] Make/model/year: majority vote across all extractions, or highest-confidence single view if votes are split
 - [x] Condition: take the *worst* (lowest) condition score seen across views — a single damaged panel shouldn't get diluted by clean views of other panels
-- [ ] Damage list: union of all damage entries seen across views, deduped by description text (case-insensitive) — if an interior photo was included (Phase 2a), it's just one more view in this same union/worst-case fusion, no special-casing needed. Each entry keeps its own `box` (or `null`) from whichever view reported it; boxes are only used for Phase 2c visualization on their source photo, never merged/reprojected across views
+- [x] Damage list: union of all damage entries seen across views, deduped by description text (case-insensitive) — if an interior photo was included (Phase 2a), it's just one more view in this same union/worst-case fusion, no special-casing needed. Each entry keeps its own `box` (or `null`) from whichever view reported it; boxes are only used for Phase 2c visualization on their source photo, never merged/reprojected across views
 - [x] Tire condition: worst score seen across whichever views show the tires
 - [x] Output one fused JSON per upload, same schema as single-view extraction
 
@@ -163,8 +163,8 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
   price = p_base * (0.5 + 0.3*condition_score + 0.15*tire_score) * (1 - 0.05*damage_count)
   ```
 - [x] Sanity-check output against 3-5 known real listings, adjust coefficients if wildly off
-- [x] **Output a price range (e.g. ±15%) plus a confidence score — this is the headline result, not a single point price.** A point estimate may be computed internally to derive the range, but it is not the primary field surfaced to the user. Widen the range (and/or lower the confidence score) when extraction confidence is low
-- [ ] **Interior-photo range adjustment**: when no interior photo was provided (Phase 2a opt-out), widen the range *asymmetrically* — lower the low end further than usual, leave the high end closer to normal. Rationale: an unseen interior could hide damage that lowers value, but can't retroactively add value, so the extra uncertainty is a downside risk, not a symmetric unknown. When an interior photo *was* provided and analyzed, use the normal (narrower) range from the confidence-based logic above — more real signal, tighter estimate
+- [x] **Output a price range (e.g. ±15%) plus a confidence score — this is the headline result, not a single point price.** A point estimate may be computed internally to derive the range, but it is not the primary field surfaced to the user. Range width scales *continuously* with confidence (not a low/high threshold switch) — the reported confidence itself is the combined vision-extraction confidence and base-price-match confidence, so a confident photo read against a thin (low-sample) comps bucket still reports appropriately uncertain
+- [x] **Interior-photo range adjustment**: when no interior photo was provided (Phase 2a opt-out), widen the range *asymmetrically* — lower the low end further than usual, leave the high end closer to normal. Rationale: an unseen interior could hide damage that lowers value, but can't retroactively add value, so the extra uncertainty is a downside risk, not a symmetric unknown. When an interior photo *was* provided and analyzed, use the normal (narrower) range from the confidence-based logic above — more real signal, tighter estimate
 
 ### 4c. Option B — Learned regression (STRETCH, only if Phase 1d comps-with-features data exists)
 - [ ] Fit linear regression or small XGBoost on scraped comps: `price ~ condition_score + tire_score + damage_count + make/model/year bucket`
@@ -174,7 +174,7 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 ### 4d. Fallback handling
 - [x] Unknown/unrecognized make-model-year combo → fall back to a generic "truck" average price, flag low confidence
 - [x] Very low extraction confidence → widen the price range, surface a warning in the UI
-- [ ] No interior photo provided → widened range (Phase 4b) plus an explicit note in the response saying so (e.g. "No interior photo was provided, so this range is wider than usual") — this is a "priced, but here's why the range is wide" note, not a warning/error, and the frontend (Phase 6) must surface it in the results view
+- [x] No interior photo provided → widened range (Phase 4b) plus an explicit note in the response saying so (e.g. "No interior photo was provided, so this range is wider than usual") — this is a "priced, but here's why the range is wide" note, not a warning/error, and the frontend (Phase 6) must surface it in the results view
 
 ### 4e. Knowing its limits (required per challenge brief, not just error handling)
 - [x] **Not-a-truck detection**: if the VLM extraction indicates the subject isn't a truck (or confidence is near-zero on make/model), refuse to output a price — return a clear "this doesn't look like a truck" response instead of a number
@@ -187,7 +187,7 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 
 ## Phase 5 — Backend API
 
-- [ ] `POST /predict` — accepts a submission from one guided capture session: the auto-snapped exterior photos (3-7 typical), an optional interior/cabin photo, an explicit `interior_included: bool` flag (Phase 2a — the backend can't infer this from an unlabeled photo list), and the one session video. Runs the pipeline on the photos (exterior + interior, if present) only; stores the video as-is (e.g. to disk/blob storage) as an authenticity record — not processed now, but kept for a possible future forgery/liveness check. Also triggers Phase 2c: annotated (boxed) copies of any photo with localized damage are saved to `results/<submission_id>/`, as a local side effect — not returned in the response body. Returns a **price range + confidence score as the headline** (not a single point price):
+- [x] `POST /predict` — accepts a submission from one guided capture session: the auto-snapped exterior photos (3-7 typical), an optional `interior_photo` field, and the one session video. `interior_included` is derived server-side from whether `interior_photo` was actually uploaded, rather than a separate client-sent flag that could get out of sync with the file itself. Runs the pipeline on the photos (exterior + interior, if present) only; stores the video as-is (e.g. to disk/blob storage) as an authenticity record — not processed now, but kept for a possible future forgery/liveness check. Also triggers Phase 2c: annotated (boxed) copies of any photo with localized damage are saved to `results/<submission_id>/`, as a local side effect — not returned in the response body. Returns a **price range + confidence score as the headline** (not a single point price):
   ```json
   {
     "status": "priced",
