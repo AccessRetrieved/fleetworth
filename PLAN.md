@@ -5,12 +5,15 @@ Webapp that predicts a used truck's price from a photo or video alone — no mil
 ## Architecture
 
 ```
-Capture: 3-7 Images (primary) OR a Short Video (alternate)
-  — user picks one mode in the frontend; video is sampled down to
-    a similar-sized set of sharp, non-duplicate frames first
+Guided Live Capture — camera opens on page load, one continuous session:
+  a guide walks the user around the truck while photos auto-snap along
+  the way (flexible angles/count, ~3-7 typical); the whole session is
+  also recorded as video, kept only as a real-life/anti-forgery record —
+  the video is NOT sampled or fed into the pipeline below, only the
+  snapped photos are
       │
       ▼
-Vision API Extraction (per image → structured JSON:
+Vision API Extraction (per photo → structured JSON:
   make, model, year_estimate, trim, condition, visible_damage,
   tire_condition, confidence)
       │
@@ -34,7 +37,9 @@ Price Range + Confidence Score + Explainable Breakdown
 Design principles:
 - The AI vision API extracts *what it sees* (structured facts), never the price itself. Price comes from a formula/model grounded in real scraped comps data. This is the core explainability story for the demo — the challenge brief explicitly says a thin "send photo to vision API, print the number" wrapper will lose ("We'll be able to tell"), so this separation is not optional polish, it's the core requirement.
 - No vision model gets trained from scratch or fine-tuned — the VLM is used pretrained/as-is for extraction. The only "training" in this project is fitting a small tabular regression (Option B, seconds not hours) on the scraped comps dataset.
-- A truck is too long to fit in one frame at useful detail, so the user provides several photos (3-7) covering different angles, instead of relying on one shot — this also keeps vision API calls to a handful per truck instead of processing a full video stream.
+- A truck is too long to fit in one frame at useful detail, so capture is a single guided live session that auto-snaps several photos (~3-7 typical) as the user moves around the truck, instead of relying on one shot — this also keeps vision API calls to a handful per truck instead of processing a full video stream.
+- **The recorded video and the snapped photos serve different, separate purposes.** Photos are the only thing that feeds the vision/pricing pipeline. The video exists purely as evidence the capture was a real live session (not a forged upload or stock photos) — it's stored as-is and not processed now. A later stretch could add automated liveness/forgery detection against the video, but that's explicitly out of scope for this build.
+- **Don't over-constrain the capture guidance to fixed named angles** (e.g. exactly one "front" shot, one "driver side" shot). We don't control, and don't know in advance, what angles a judge's own unseen photos will use when they test the system directly — so the guidance during capture should encourage broad coverage (move around the truck, get the tires, etc.) without hard-requiring a rigid per-angle checklist, and the pipeline (Phase 3 fusion, Phase 4e limits) must already tolerate a variable, unlabeled set of views rather than assuming named waypoints.
 - **The headline output is a price range + a confidence score, not a single point price.** A lone number reads as false precision for something priced off a handful of photos; the range and confidence are what the "why this price" explainability story is actually selling. An internal point estimate may still exist as an implementation detail (e.g. to compute the range), but it is never the primary thing shown or returned.
 - **Interior/cab damage is out of scope.** Don't require or rely on an interior photo — it may not be provided at all, and internal condition/damage isn't part of this build's pricing signal. Fusion and the "missing view" check should only consider exterior views.
 - The comps dataset and the query truck's photos are decoupled: comps only need one decent photo per listing for condition scoring, and don't need to match the query's capture angles (see Phase 1b note).
@@ -83,28 +88,18 @@ Goal: build a dataset of `{image_url(s), make, model, year, trim, price, mileage
 
 ---
 
-## Phase 2 — Capture (Image or Video) + Vision Extraction Pipeline
+## Phase 2 — Guided Live Capture + Vision Extraction Pipeline
 
-The user picks an input mode in the frontend (Phase 6): a small set of photos (3-7, image mode) is the primary/simpler path, or a short video (video mode) as an alternative. Whichever mode is used, the two converge on the same thing before Phase 2b runs: a handful of sharp, non-duplicate truck images. A single frame can't fit a whole truck at useful detail, which is why either path ends up giving the pipeline several angles rather than one shot.
+There is no image-vs-video choice for the user — capture is always one continuous live-camera session that produces two artifacts at once: a set of auto-snapped photos (which feed the vision pipeline) and a full video recording of that same session (kept only as a real-life/anti-forgery record, never processed by the pipeline). See design principles above for why these two are kept separate.
 
-### 2a. Guided capture — image mode (primary)
-- [ ] Treat capture waypoints as a *guide*, not a rigid requirement: front, driver side, rear, passenger side, tires/wheels close-up (~3-7 shots total, exact count is flexible — the pipeline works with whatever's provided, see Phase 3)
-- [ ] **Interior/cab shots are out of scope** — don't prompt for one, and don't penalize a submission for not including it (internal damage isn't part of this build's pricing signal; see design principles above)
-- [ ] UI walks the user through each exterior waypoint in sequence ("show me the front", "now the driver side", ...)
-- [ ] Run a lightweight in-browser object detector (TensorFlow.js + small YOLO model, or a simple bounding-box tracker) on the live camera feed to:
-  - Confirm a truck is actually in frame before allowing capture
-  - Warn if too close (edges cut off) — prompt "step back"
-  - Auto-capture when framing looks good, or let user tap to confirm
-- [ ] Only send the selected keyframe per waypoint to the backend (not a full stream) — keeps API calls in the 3-7 range per truck
-
-### 2a-video. Guided capture — video mode (alternate)
-- [ ] User records or uploads a short pan-around video of the truck instead of individual photos — this path exists alongside image mode, not just as a fallback if the guided UI runs out of time
-- [ ] Image mode is the priority path when both are available; video mode is for when the user would rather do one continuous pan than stop for individual shots
-- [ ] Sample frames at ~1/sec, then cut the sampled set down before it ever reaches Phase 2b:
-  - Drop blurry frames (Laplacian variance threshold — reuse the same blur check as Phase 4e)
-  - Drop near-duplicate frames (perceptual hash or simple frame-diff against recently-kept frames) so a slow pan doesn't produce ten near-identical shots of the same panel
-  - Aim to land in the same 3-7 representative-frame range as image mode
-- [ ] From here on both modes are identical — the surviving frames/photos feed into Phase 2b the same way
+### 2a. Guided live capture (frontend)
+- [ ] On page load, immediately open the device's camera feed — no upload picker, no mode selection, capture starts from a live view
+- [ ] **Start** button begins recording the session as one video file and begins the capture guide
+- [ ] While recording, a guide prompts the user to move around the truck (e.g. "walk to the front", "now the side", "get close to the tires") to encourage broad coverage — but this is guidance, not a rigid checklist: don't hard-require exactly one shot per named angle, since we don't know what angles a judge's own unseen test photos will use, and the pipeline (Phase 3, Phase 4e) is designed to work over however many views actually come in
+- [ ] Auto-snap a photo periodically or when framing looks good during the session (reuse the in-browser detector idea — confirm a truck is in frame, not too close/cut off — as the trigger), aiming for roughly 3-7 photos per session without hard-failing if the count comes out higher or lower
+- [ ] **Stop** button ends the recording
+- [ ] **Submit** button uploads both artifacts to the backend: the auto-snapped photos (for Phase 2b extraction) and the full session video (stored as-is, not processed for pricing)
+- [ ] **Interior/cab shots are out of scope** — the guide doesn't prompt for one, and a submission isn't penalized for not including it (internal damage isn't part of this build's pricing signal; see design principles above)
 
 ### 2b. Vision extraction
 - [ ] Write the structured-extraction prompt for the vision API:
@@ -119,13 +114,13 @@ The user picks an input mode in the frontend (Phase 6): a small set of photos (3
   ```
 - [ ] Test on 10+ sample images (mix from scraped data), iterate prompt until reliably valid + reasonably accurate
 - [ ] Wrap API call with JSON parsing + validation, handle malformed responses (retry once, then fallback to "unknown")
-- [ ] Run one extraction call per surviving image, whichever mode produced it (~3-7 calls per truck, never per raw video frame)
+- [ ] Run one extraction call per auto-snapped photo only (~3-7 calls per truck) — the stored video is never sampled into frames or fed into extraction
 
 ---
 
 ## Phase 3 — Multi-View Fusion
 
-Works across any number of usable views (3-7 typical, from either capture mode) — not tied to a fixed count or fixed named waypoints, since exactly which angles the user provides will vary.
+Works across any number of usable views (3-7 typical) — not tied to a fixed count or fixed named waypoints, since exactly which angles the guided session actually snapped will vary.
 
 - [ ] Make/model/year: majority vote across all extractions, or highest-confidence single view if votes are split
 - [ ] Condition: take the *worst* (lowest) condition score seen across views — a single damaged panel shouldn't get diluted by clean views of other panels
@@ -168,8 +163,8 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 
 ### 4e. Knowing its limits (required per challenge brief, not just error handling)
 - [ ] **Not-a-truck detection**: if the VLM extraction indicates the subject isn't a truck (or confidence is near-zero on make/model), refuse to output a price — return a clear "this doesn't look like a truck" response instead of a number
-- [ ] **Missing-critical-view detection**: if a required waypoint (e.g. tires, or any side) is missing, blank, or too blurry/dark to assess, don't silently guess — flag exactly which view is missing and what's needed, matching the brief's own example ("send me a shot of the tires")
-- [ ] **Blurry/unusable image detection**: reuse the blur-detection heuristic (Laplacian variance) per waypoint image; below threshold → treat that waypoint as missing rather than feeding a bad extraction into fusion
+- [ ] **Missing-critical-view detection**: photos aren't labeled by angle (capture is unstructured/guided, not a fixed named-waypoint checklist — see Phase 2a), so this has to be judged from content, not from a slot being empty: e.g. if none of the submitted photos give a usable read on tire condition, don't silently guess — flag exactly what's missing, matching the brief's own example ("send me a shot of the tires")
+- [ ] **Blurry/unusable image detection**: reuse the blur-detection heuristic (Laplacian variance) per submitted photo; below threshold → drop that photo from the usable set rather than feeding a bad extraction into fusion
 - [ ] **Confidence-gated response tiers**: define at least two response modes — "priced" (normal output) vs. "needs more info" (names the specific gap) — the UI (Phase 6) needs to render both, not just the happy path
 - [ ] This phase directly maps to judging criterion "Does it know its limits?" — treat it as core scope, not a stretch goal, and make sure at least one demo test case (Phase 7) deliberately triggers it
 
@@ -177,7 +172,7 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 
 ## Phase 5 — Backend API
 
-- [ ] `POST /predict` — accepts either 3-7 images or one video file (mode indicated by the request, matching the frontend's image/video toggle in Phase 6), runs the full pipeline, returns a **price range + confidence score as the headline** (not a single point price):
+- [ ] `POST /predict` — accepts a submission from one guided capture session: the auto-snapped photos (3-7 typical) plus the one session video. Runs the pipeline on the photos only; stores the video as-is (e.g. to disk/blob storage) as an authenticity record — not processed now, but kept for a possible future forgery/liveness check. Returns a **price range + confidence score as the headline** (not a single point price):
   ```json
   {
     "status": "priced",
@@ -209,10 +204,11 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 
 **Owned by another team member, built in Python Flask on a separate branch, merged into `main` once ready — not part of the backend/scraper workstream.**
 
-- [ ] **Image/Video mode toggle**: let the user explicitly choose which they're providing before upload — this selection drives different capture/upload logic and a different request to the backend (Phase 5), not just a cosmetic label
-- [ ] Image mode: drag-and-drop or multi-select for 3-7 photos
-- [ ] Video mode: drag-and-drop or record a single short video file
-- [ ] Loading state (video processing will take longer — show progress if possible)
+- [ ] **No upload picker, no mode choice** — the page opens straight into a live camera feed with Start / Stop / Submit controls (see Phase 2a); this replaces any drag-and-drop upload flow
+- [ ] Guide overlay during recording, prompting the user to move around the truck (loose guidance, not a rigid per-angle checklist — see Phase 2a)
+- [ ] Auto-snap indicator so the user can see photos being captured during the session
+- [ ] Submit sends both the snapped photos and the session video to the backend (Phase 5) in one request
+- [ ] Loading state after submit (show progress if possible)
 - [ ] Results view: headline is the **price range + confidence score** (not a single number), then the explainable breakdown (base price → condition → final), matching the "why this price" demo story
 - [ ] **"Needs more info" view**: distinct from an error state — this is a successful, intended outcome per the brief, so design it to look deliberate (not a crash/broken page), e.g. "we need a clearer shot of X" with a way to add the missing photo and retry
 - [ ] Basic error states (bad upload, API failure) — kept separate from the "needs more info" case above, since one is a system limitation being handled gracefully and the other is a genuine error
@@ -222,17 +218,16 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 ## Phase 6b — Stretch: Panorama Stitching (only if core pipeline is solid with time to spare)
 
 - [ ] For a continuous single-side view (helps catch damage that spans a panel), stitch a pan-across-the-side video into one mosaic using `cv2.Stitcher_create()` (ORB/SIFT feature matching + homography)
-- [ ] Feed the stitched mosaic as one extra image to the vision API for that side, in addition to (not instead of) the waypoint shots
+- [ ] Feed the stitched mosaic as one extra image to the vision API for that side, in addition to (not instead of) the auto-snapped photos
 - [ ] Known risk: reflective paint and repetitive panel textures can break feature matching — treat as a bonus demo moment, not a dependency
 
 ---
 
 ## Phase 7 — Demo Prep
 
-- [ ] Select 3-4 test videos/images spanning: clean truck, visibly damaged truck, two different makes/models
+- [ ] Select 3-4 test photo sets (captured via the real guided-capture flow, not curated stock photos) spanning: clean truck, visibly damaged truck, two different makes/models
 - [ ] Prepare one deliberate hard case (ambiguous angle, unusual truck) to show graceful degradation
-- [ ] **Prepare one deliberate "knows its limits" case** — a non-truck photo, or a set with the tires (or another required exterior view) deliberately missing — to actively demonstrate the Phase 4e refusal behavior live, since judges score this explicitly and will likely test it themselves with unseen photos
-- [ ] Include at least one video-mode test case alongside the image-mode ones, so the frame-filtering path (drop blurry/duplicate frames) actually gets exercised before the demo, not just the image path
+- [ ] **Prepare one deliberate "knows its limits" case** — a non-truck subject, or a session with the tires (or another useful view) deliberately skipped during capture — to actively demonstrate the Phase 4e refusal behavior live, since judges score this explicitly and will likely test it themselves with their own live capture session
 - [ ] One-slide pipeline diagram (the architecture diagram at the top of this doc)
 - [ ] Rehearse answer to "why not just ask the AI model for a price directly" — this is the strongest technical talking point (grounded comps data + explainable formula vs. ungrounded LLM guess), and it's a direct answer to the brief's own "what won't win" line
 - [ ] Remember: judges bring their own unseen photos for a live appraisal — build and test for genuinely unfamiliar inputs, not just your curated demo set
@@ -244,6 +239,7 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 - Vision API choice: TBD — pick based on available API credits
 - Scraper scope: if time-constrained, limit to 3-5 common truck models (F-150, Silverado, Ram 1500, etc.) rather than all trucks, for better comps density per bucket
 - Legal/ethical note: scrape respectfully (rate limits, robots.txt, no auth bypass) — this is a hackathon demo, not a production scraping operation
-- In-browser detection library (Phase 2a): if TensorFlow.js/YOLO setup eats too much time, the simpler fallback (accept pre-recorded video, pick best frame per time-segment) is an acceptable substitute — don't let waypoint UI polish block the core pipeline
+- In-browser detection library (Phase 2a): if TensorFlow.js/YOLO setup for the auto-snap trigger eats too much time, a simpler fallback (snap on a fixed timer instead of framing-based detection) is an acceptable substitute — don't let this polish block the core pipeline
 - Interior/cab photos are explicitly out of scope for this build (not required, not penalized if missing, not fused/priced on) — we don't know if interior images will even be provided, and internal damage isn't part of the pricing signal here
-- Image mode is the primary, better-tested path; video mode is a fully supported second input option (not just a Phase 2a fallback), but gets less polish if time runs short — prioritize accordingly
+- The session video is stored (disk/blob storage — mechanism TBD) purely as an authenticity record; no forgery/liveness detection is built against it in this pass, that's explicitly deferred to later
+- Capture guidance is intentionally loose about exact angles (see Phase 2a) — don't design the pipeline or the demo around an assumption that photos arrive in a fixed order or fixed named set
