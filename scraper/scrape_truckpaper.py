@@ -21,14 +21,26 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
-# Keep models constrained for comps density, per PLAN.md Phase 1b.
+# Commercial trucks only — no pickups. Mix of semi tractors (by make/model,
+# since "semi truck" isn't a useful keyword on its own) and medium-duty work
+# truck categories, per user direction.
 SEARCH_KEYWORDS = [
-    "F-150",
-    "Silverado 1500",
-    "Ram 1500",
-    "Sierra 1500",
-    "F-250",
+    # Semi trucks / tractors
+    "Freightliner Cascadia",
+    "Peterbilt 389",
+    "Kenworth T680",
+    "Volvo VNL",
+    "International LT",
+    # Medium-duty work trucks
+    "Dump Truck",
+    "Box Truck",
+    "Service Truck",
+    "Freightliner M2",
 ]
+
+# Safety net: reject any listing whose category text looks like a pickup,
+# in case a keyword match pulls one in (e.g. a Ford F-550 "Dump Truck" hit).
+PICKUP_CATEGORY_MARKERS = ("pickup", "ton pickup")
 
 BASE_URL = "https://www.truckpaper.com/listings/for-sale/trucks-and-trailers/all"
 PAGES_PER_KEYWORD = 12  # ~28 listings/page; yield varies (some pages are auction-heavy)
@@ -166,6 +178,9 @@ def scrape():
                         continue  # drop rows with missing price or images (Phase 1c)
                     if record["is_auction"]:
                         continue  # opening bid != market price, skews base-price averages
+                    cat_lower = (record["category"] or "").lower()
+                    if any(marker in cat_lower for marker in PICKUP_CATEGORY_MARKERS):
+                        continue  # commercial trucks only, no pickups
                     seen_ids.add(record["listing_id"])
                     out_f.write(json.dumps(record) + "\n")
                     out_f.flush()
