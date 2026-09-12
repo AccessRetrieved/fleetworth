@@ -20,6 +20,12 @@
       </section>
 
       <div class="controls" aria-label="Camera controls">
+        <label class="camera-picker" for="cameraSelect">
+          <span>Webcam</span>
+          <select id="cameraSelect" disabled>
+            <option value="">Detecting cameras…</option>
+          </select>
+        </label>
         <button id="startButton" class="button button-primary" type="button">Start</button>
         <button id="stopButton" class="button" type="button" disabled>Stop</button>
         <button id="submitButton" class="button button-submit" type="button">Submit</button>
