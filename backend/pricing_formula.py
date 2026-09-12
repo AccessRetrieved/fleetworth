@@ -20,7 +20,6 @@ BASE_MATCH_CONFIDENCE = {"high": 1.0, "medium": 0.7, "low": 0.4}
 
 MIN_RANGE_PCT = 0.10  # tightest possible range, at full confidence
 MAX_RANGE_PCT = 0.45  # widest range, at zero confidence
-INTERIOR_MISSING_LOW_EXTRA_PCT = 0.10  # extra knocked off the low end only when no interior photo
 MIN_MULTIPLIER = 0.15  # floor so a heavily-damaged truck doesn't go to $0/negative
 
 
@@ -34,14 +33,11 @@ def _range_pct_for_confidence(confidence: float) -> float:
     return MIN_RANGE_PCT + (1 - confidence) * (MAX_RANGE_PCT - MIN_RANGE_PCT)
 
 
-def compute_price(extraction: dict, interior_included: bool = False) -> dict:
+def compute_price(extraction: dict) -> dict:
     """
     extraction: fused vision-extraction dict (Phase 3 output), expects
     make, model, year_estimate, condition, tire_condition, visible_damage,
     confidence.
-    interior_included: whether an interior/cabin photo was part of this
-    submission (Phase 2a toggle) — widens the range asymmetrically when
-    False (see design principles in PLAN.md).
 
     Returns the shape used by the /predict API (Phase 5) — price_range +
     confidence are the headline, not a single point price:
@@ -50,7 +46,7 @@ def compute_price(extraction: dict, interior_included: bool = False) -> dict:
       breakdown: {base_price, make, model, year_estimate, condition,
                    damage, tire_condition, views_used, base_price_match,
                    base_price_sample_size, multiplier_applied,
-                   internal_point_estimate, interior_included}
+                   internal_point_estimate}
     }
     """
     make = extraction.get("make", "unknown")
@@ -86,12 +82,6 @@ def compute_price(extraction: dict, interior_included: bool = False) -> dict:
     low_pct, high_pct = range_pct, range_pct
 
     notes = []
-    if not interior_included:
-        # Unseen interior could hide damage that lowers value, but can't
-        # retroactively add value — so this is a downside-only risk, not
-        # a symmetric unknown.
-        low_pct += INTERIOR_MISSING_LOW_EXTRA_PCT
-        notes.append("No interior photo was provided, so this range is wider than usual.")
 
     price_range = [
         round(point_estimate * (1 - low_pct), 2),
@@ -113,7 +103,6 @@ def compute_price(extraction: dict, interior_included: bool = False) -> dict:
             "damage": [d.get("description", str(d)) if isinstance(d, dict) else d for d in visible_damage],
             "tire_condition": tire_condition,
             "views_used": extraction.get("views_used"),
-            "interior_included": interior_included,
             "multiplier_applied": round(multiplier, 4),
             "internal_point_estimate": point_estimate,
         },

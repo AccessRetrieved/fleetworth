@@ -18,19 +18,13 @@ from vision_extract import _client, extract_from_image
 def run_pipeline(
     photos: list[str | bytes],
     submission_id: str | None = None,
-    interior_included: bool = False,
 ) -> dict:
     """
     photos: list of images (URL, path, or raw bytes) — the auto-snapped
-    exterior photos, plus the interior/cabin photo too if one was
-    provided (it's just one more photo to this pipeline; nothing here
-    needs to know which one it is).
+    exterior photos from one guided capture session.
     submission_id: when given, triggers Phase 2c — any photo with
     localized damage gets an annotated copy saved to
     results/<submission_id>/ (local side effect, not returned here).
-    interior_included: whether an interior/cabin photo is among `photos`
-    (Phase 2a toggle) — passed through to the pricing formula, which
-    widens the range when False (see PLAN.md design principles).
 
     Returns one of:
       {"status": "priced", "price_range": [...], "confidence": ..., "notes": [...], "breakdown": {...}}
@@ -55,4 +49,4 @@ def run_pipeline(
 
     usable = [e for e in extractions if e is not None]
     fused = fuse_extractions(usable)
-    return {"status": "priced", **compute_price(fused, interior_included=interior_included)}
+    return {"status": "priced", **compute_price(fused)}

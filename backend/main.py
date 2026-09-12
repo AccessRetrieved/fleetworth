@@ -2,10 +2,9 @@
 Phase 5 — Backend API.
 
 POST /predict accepts one guided-capture submission (PLAN.md Phase 2a):
-the auto-snapped exterior photos, an optional interior/cabin photo, and
-the session video. Only the photos go through the pricing pipeline; the
-video is stored as-is, purely as a real-life/anti-forgery record (no
-processing of it in this build).
+the auto-snapped exterior photos and the session video. Only the photos
+go through the pricing pipeline; the video is stored as-is, purely as a
+real-life/anti-forgery record (no processing of it in this build).
 """
 import uuid
 from pathlib import Path
@@ -36,7 +35,6 @@ ALLOWED_VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
 async def predict(
     photos: list[UploadFile] = File(...),
     video: UploadFile = File(...),
-    interior_photo: UploadFile | None = File(None),
 ):
     if len(photos) < MIN_PHOTOS:
         raise HTTPException(status_code=400, detail="At least one photo is required")
@@ -49,20 +47,8 @@ async def predict(
             )
     if video.content_type not in ALLOWED_VIDEO_TYPES:
         raise HTTPException(status_code=400, detail=f"Unsupported video type: {video.content_type}")
-    if interior_photo is not None and interior_photo.content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported interior photo type: {interior_photo.content_type}",
-        )
 
     photo_bytes = [await p.read() for p in photos]
-
-    # interior_included is derived from whether an interior photo was
-    # actually uploaded, rather than a separate flag the client could
-    # send out of sync with the file itself.
-    interior_included = interior_photo is not None
-    if interior_included:
-        photo_bytes.append(await interior_photo.read())
 
     # Store the video as-is (authenticity record — never processed here).
     submission_id = str(uuid.uuid4())
@@ -73,7 +59,7 @@ async def predict(
     video_path.write_bytes(await video.read())
 
     try:
-        result = run_pipeline(photo_bytes, submission_id=submission_id, interior_included=interior_included)
+        result = run_pipeline(photo_bytes, submission_id=submission_id)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Pipeline error: {e}")
 
