@@ -17,15 +17,14 @@ The vision model extracts observable facts only; it must never generate the pric
 
 ## Current scope: Phase 2a
 
-The frontend owns one camera-only live walkaround. Do not add an upload picker or a capture-mode toggle.
+The frontend owns one camera-only live exterior walkaround. Do not add an arbitrary exterior upload picker or a capture-mode toggle; the only picker is the separate optional cabin-photo step after recording.
 
 - **Start session** begins a browser `MediaRecorder` session video and enables capture.
 - A flexible guide suggests wide, front, side, rear, tire, and remaining exterior coverage. It is deliberately not a fixed-angle checklist. Never mark suggestions complete based on photo count or imply that the detector verified an angle.
 - While recording, auto-snap may collect clear frames and the user may manually snap them. Keep 3–7 photos; the first three are the minimum, the rest improve coverage. Leave enough auto-capture delay for the user to walk to a meaningfully different view.
 - **Stop session** finalizes the original recording. Show the finished recording in the review area. The video is a live-capture/authenticity record and must not be used by pricing or visual extraction.
-- **Submit** sends the 3–7 photos and finalized video together. The UI must have loading, priced, error, and `needs_more_info` states.
-
-Internal appearance and internal damage explicitly do not matter under the organizer's latest direction. Do not add cab-interior capture or any internal-condition scoring unless that direction changes.
+- After Stop, offer an optional cabin photo as a separate single-image picker. It is not part of the live guide or authenticity video. If included it feeds visual extraction; if omitted, submission remains valid and the backend may return a wider range with an explanatory note.
+- **Submit** sends the 3–7 exterior photos, optional cabin photo, explicit `interior_included` flag, and finalized video together. The UI must have loading, priced, error, and `needs_more_info` states.
 
 ## Browser-side evidence rules
 
@@ -47,12 +46,14 @@ Photos and video stay in browser memory until intentional submission. Replacing/
 
 - `manifest`: JSON file with photo and video metadata
 - `photos`: repeated JPEG fields named `capture-<n>.jpg`
+- `interior_included`: explicit `true` or `false` string
+- `interior_photo`: optional single image named `interior.jpg`, `interior.png`, or `interior.webp`
 - `session_video`: original session recording
 
 The page body's optional `data-predict-endpoint` identifies the FastAPI route. The frontend POSTs to it if present; otherwise it dispatches `fleetworth:capture-ready` and shows an evidence-ready state. Expected response shapes include:
 
 ```json
-{ "status": "priced", "price_range": [22000, 26000], "confidence": 0.78 }
+{ "status": "priced", "price_range": [22000, 26000], "confidence": 0.78, "notes": [], "breakdown": {} }
 ```
 
 or:

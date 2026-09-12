@@ -46,6 +46,16 @@ const resultPanel = document.querySelector("#resultPanel");
 const sessionVideoReview = document.querySelector("#sessionVideoReview");
 const sessionPlayback = document.querySelector("#sessionPlayback");
 const sessionVideoMeta = document.querySelector("#sessionVideoMeta");
+const interiorOption = document.querySelector("#interiorOption");
+const interiorIncluded = document.querySelector("#interiorIncluded");
+const interiorChoiceLabel = document.querySelector("#interiorChoiceLabel");
+const interiorUpload = document.querySelector("#interiorUpload");
+const interiorPhotoInput = document.querySelector("#interiorPhotoInput");
+const interiorPreview = document.querySelector("#interiorPreview");
+const interiorPreviewImage = document.querySelector("#interiorPreviewImage");
+const interiorFileName = document.querySelector("#interiorFileName");
+const interiorMessage = document.querySelector("#interiorMessage");
+const removeInteriorButton = document.querySelector("#removeInteriorButton");
 
 const captures = [];
 let cameraStream;
@@ -65,6 +75,8 @@ let analysisTimer;
 let clockTimer;
 let stableSince = 0;
 let suggestionIndex = 0;
+let interiorPhoto;
+let isSubmitting = false;
 let currentAssessment = { ready: false, type: "loading", message: "Loading framing assistant…", confidence: 0 };
 
 function guideIndex() {
@@ -144,7 +156,10 @@ function renderCaptures() {
   for (let index = captures.length; index < TARGET_PHOTOS; index += 1) {
     const card = document.createElement("article");
     card.className = "capture-card is-empty";
-    card.innerHTML = `<div><span>${index + 1}</span>${index < MIN_PHOTOS ? "Required minimum" : "Optional coverage"}</div>`;
+    const number = createElement("span", "capture-slot-number", String(index + 1));
+    const label = createElement("strong", "capture-slot-label", index < MIN_PHOTOS ? "Required" : "Optional");
+    const detail = createElement("small", "capture-slot-detail", index < MIN_PHOTOS ? "minimum" : "coverage");
+    card.append(number, label, detail);
     captureGrid.append(card);
   }
 }
@@ -152,17 +167,21 @@ function renderCaptures() {
 function renderReview() {
   const count = captures.length;
   const enoughPhotos = count >= MIN_PHOTOS;
-  const ready = enoughPhotos && sessionVideo;
+  const needsInteriorPhoto = interiorIncluded.checked && !interiorPhoto;
+  const ready = enoughPhotos && sessionVideo && !needsInteriorPhoto;
   reviewSummary.textContent = isRecording
     ? `${count} snapped ${count === 1 ? "photo" : "photos"} so far. Keep walking for broad coverage.`
     : count
       ? `${count} ${count === 1 ? "photo" : "photos"} captured${sessionVideo ? " with a recorded session" : ""}${enoughPhotos ? " · minimum met" : ` · ${MIN_PHOTOS - count} more needed`}.`
       : "Start a session to collect 3–7 photos.";
-  submitHeading.textContent = ready ? "Capture evidence is ready" : sessionVideo ? "Restart to collect enough photos" : "Stop the session to finalize video";
-  submitDetail.textContent = "Photos feed visual extraction. The session video is kept separately as a live-capture record.";
+  submitHeading.textContent = ready ? "Capture evidence is ready" : needsInteriorPhoto ? "Choose a cabin photo to continue" : sessionVideo ? "Restart to collect enough photos" : "Stop the session to finalize video";
+  submitDetail.textContent = ready && !interiorIncluded.checked
+    ? "Exterior photos feed visual extraction. Your estimate may be wider without a cabin photo."
+    : "Photos feed visual extraction. The session video is kept separately as a live-capture record.";
   resetButton.disabled = !captures.length && !sessionVideo && !isRecording;
-  submitButton.disabled = !ready || isRecording;
+  submitButton.disabled = !ready || isRecording || isSubmitting;
   sessionVideoReview.hidden = !sessionVideoUrl;
+  interiorOption.hidden = !sessionVideo;
   if (sessionVideoUrl) {
     if (sessionPlayback.src !== sessionVideoUrl) sessionPlayback.src = sessionVideoUrl;
     sessionVideoMeta.textContent = `${formatDuration(sessionDurationMs)} · ${(sessionVideo.size / 1024 / 1024).toFixed(1)} MB · kept separate from pricing analysis.`;
@@ -180,9 +199,23 @@ function clearResult() {
   resultPanel.replaceChildren();
 }
 
-function showResult(type, title, message, content = "") {
+function createElement(tag, className, text) {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  if (text !== undefined) element.textContent = text;
+  return element;
+}
+
+function showResult(type, title, message, content) {
+  const labels = { priced: "Estimate ready", "needs-info": "More evidence needed", loading: "Analyzing evidence", ready: "Handoff ready", error: "Something went wrong" };
   resultPanel.className = `result-panel is-${type}`;
-  resultPanel.innerHTML = `<p class="eyebrow">${type === "priced" ? "Estimate ready" : type === "needs-info" ? "More evidence needed" : "Sending evidence"}</p><h2>${title}</h2><p>${message}</p>${content}`;
+  resultPanel.setAttribute("aria-busy", String(type === "loading"));
+  resultPanel.replaceChildren(
+    createElement("p", "eyebrow", labels[type] || "Fleetworth"),
+    createElement("h2", "", title),
+    createElement("p", "result-intro", message),
+  );
+  if (content) resultPanel.append(content);
   resultPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -333,6 +366,11 @@ function sessionVideoFilename() {
   return sessionVideo?.type.includes("mp4") ? "session.mp4" : "session.webm";
 }
 
+function interiorPhotoFilename() {
+  const extension = { "image/png": "png", "image/webp": "webp" }[interiorPhoto?.blob.type] || "jpg";
+  return `interior.${extension}`;
+}
+
 function startClock() {
   window.clearInterval(clockTimer);
   recordingStartedAt = Date.now();
@@ -398,6 +436,9 @@ function startSession() {
     return;
   }
   clearResult();
+  clearInteriorPhoto();
+  interiorIncluded.checked = false;
+  renderInteriorChoice();
   mediaChunks = [];
   sessionVideo = undefined;
   sessionDurationMs = 0;
@@ -422,7 +463,7 @@ function startSession() {
     stopButton.disabled = true;
     cameraSelect.disabled = cameraSelect.options.length <= 1;
     setSessionState("Session recorded", "complete");
-    actionMessage.textContent = captures.length >= MIN_PHOTOS ? "Session video saved locally. Review photos, then submit when ready." : `Session saved without enough photos. Discard it and restart to collect ${MIN_PHOTOS} clear photos in one continuous session.`;
+    actionMessage.textContent = captures.length >= MIN_PHOTOS ? "Session video saved locally. Choose whether to add a cabin photo, then submit when ready." : `Session saved without enough photos. Discard it and restart to collect ${MIN_PHOTOS} clear photos in one continuous session.`;
     renderAll();
   }, { once: true });
   mediaRecorder.start(1000);
@@ -478,34 +519,183 @@ function removeCapture(id) {
   if (index === -1) return;
   URL.revokeObjectURL(captures[index].url);
   captures.splice(index, 1);
-  actionMessage.textContent = "Photo removed. Continue the live session for another frame.";
+  actionMessage.textContent = isRecording ? "Photo removed. Continue the live session for another frame." : "Photo removed. If fewer than three remain, discard this session and record a new walkaround.";
   renderAll();
 }
 
+function clearInteriorPhoto() {
+  if (interiorPhoto?.url) URL.revokeObjectURL(interiorPhoto.url);
+  interiorPhoto = undefined;
+  interiorPhotoInput.value = "";
+  interiorPreviewImage.removeAttribute("src");
+  interiorPreview.hidden = true;
+  interiorFileName.textContent = "";
+  interiorMessage.textContent = "";
+}
+
+function renderInteriorChoice() {
+  const included = interiorIncluded.checked;
+  interiorChoiceLabel.textContent = included ? "Yes, add a cabin photo" : "No, continue without one";
+  interiorUpload.hidden = !included;
+  if (!included) clearInteriorPhoto();
+  renderReview();
+}
+
+function readImageDimensions(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener("load", () => resolve({ width: image.naturalWidth, height: image.naturalHeight }), { once: true });
+    image.addEventListener("error", reject, { once: true });
+    image.src = url;
+  });
+}
+
+async function selectInteriorPhoto() {
+  const [file] = interiorPhotoInput.files;
+  if (!file) return;
+  if (!new Set(["image/jpeg", "image/png", "image/webp"]).has(file.type)) {
+    clearInteriorPhoto();
+    interiorMessage.textContent = "Choose a JPEG, PNG, or WebP image.";
+    renderReview();
+    return;
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const dimensions = await readImageDimensions(url);
+    clearInteriorPhoto();
+    interiorPhoto = { blob: file, url, filename: file.name || "interior.jpg", capturedAt: new Date().toISOString(), ...dimensions };
+    interiorPreviewImage.src = url;
+    interiorFileName.textContent = interiorPhoto.filename;
+    interiorPreview.hidden = false;
+    interiorMessage.textContent = "Cabin photo ready to include.";
+  } catch {
+    URL.revokeObjectURL(url);
+    clearInteriorPhoto();
+    interiorMessage.textContent = "That image could not be read. Choose another file.";
+  }
+  renderReview();
+}
+
 function buildManifest() {
-  return { schema_version: "2.0", captured_at: new Date().toISOString(), photo_count: captures.length, session_video: { filename: sessionVideoFilename(), type: sessionVideo?.type, size: sessionVideo?.size, duration_ms: sessionDurationMs }, photos: captures.map((capture, index) => ({ id: capture.id, filename: `capture-${index + 1}.jpg`, captured_at: capture.capturedAt, width: capture.width, height: capture.height, detector_confidence: capture.detectorConfidence })) };
+  const hasInterior = interiorIncluded.checked && Boolean(interiorPhoto);
+  return {
+    schema_version: "3.0",
+    captured_at: new Date().toISOString(),
+    photo_count: captures.length,
+    total_photo_count: captures.length + (hasInterior ? 1 : 0),
+    interior_included: hasInterior,
+    interior_photo: hasInterior ? { filename: interiorPhotoFilename(), original_filename: interiorPhoto.filename, type: interiorPhoto.blob.type, size: interiorPhoto.blob.size, captured_at: interiorPhoto.capturedAt, width: interiorPhoto.width, height: interiorPhoto.height } : null,
+    session_video: { filename: sessionVideoFilename(), type: sessionVideo?.type, size: sessionVideo?.size, duration_ms: sessionDurationMs },
+    photos: captures.map((capture, index) => ({ id: capture.id, filename: `capture-${index + 1}.jpg`, captured_at: capture.capturedAt, width: capture.width, height: capture.height, detector_confidence: capture.detectorConfidence })),
+  };
 }
 
 function buildFormData() {
-  if (!sessionVideo || captures.length < MIN_PHOTOS) return null;
+  if (!sessionVideo || captures.length < MIN_PHOTOS || (interiorIncluded.checked && !interiorPhoto)) return null;
   const manifest = buildManifest();
   const formData = new FormData();
   formData.append("manifest", new Blob([JSON.stringify(manifest)], { type: "application/json" }), "manifest.json");
   captures.forEach((capture, index) => formData.append("photos", capture.blob, `capture-${index + 1}.jpg`));
+  formData.append("interior_included", String(manifest.interior_included));
+  if (manifest.interior_included) formData.append("interior_photo", interiorPhoto.blob, interiorPhotoFilename());
   formData.append("session_video", sessionVideo, sessionVideoFilename());
   return { formData, manifest };
 }
 
-function renderBackendResponse(response) {
-  if (response.status === "priced") {
-    const [low, high] = response.price_range || [];
-    const content = `<div class="price-range">${low?.toLocaleString?.("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }) || "—"} – ${high?.toLocaleString?.("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }) || "—"}</div><p>Confidence: ${Math.round((response.confidence || 0) * 100)}%</p>`;
-    showResult("priced", "Estimated truck value", "Pricing is grounded in comparable listings and the captured visual evidence.", content);
-  } else if (response.status === "needs_more_info") {
-    showResult("needs-info", "We need a clearer view", response.message || "The current evidence cannot support a confident estimate.");
-  } else {
-    showResult("error", "We could not complete the estimate", response.message || "Please try the capture again.");
+function formatMoney(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  const amount = Number(value);
+  return Number.isFinite(amount) ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(amount) : "—";
+}
+
+function appendValuationStep(container, label, value, isFinal = false) {
+  const step = createElement("div", `valuation-step${isFinal ? " is-final" : ""}`);
+  step.append(createElement("small", "", label), createElement("strong", "", value));
+  container.append(step);
+}
+
+function renderPricedResult(response) {
+  const [low, high] = Array.isArray(response.price_range) ? response.price_range : [];
+  const confidence = Math.max(0, Math.min(1, Number(response.confidence) || 0));
+  const breakdown = response.breakdown || {};
+  const content = createElement("div", "priced-content");
+  content.append(createElement("div", "price-range", `${formatMoney(low)} – ${formatMoney(high)}`));
+
+  const confidenceRow = createElement("div", "confidence-row");
+  confidenceRow.append(createElement("span", "", `${Math.round(confidence * 100)}% confidence`));
+  const meter = createElement("span", "confidence-meter");
+  const meterFill = createElement("span");
+  meterFill.style.width = `${Math.round(confidence * 100)}%`;
+  meter.append(meterFill);
+  confidenceRow.append(meter);
+  content.append(confidenceRow);
+
+  const notes = Array.isArray(response.notes) ? response.notes.filter((note) => typeof note === "string" && note.trim()) : [];
+  if (notes.length) {
+    const noteList = createElement("div", "result-notes");
+    notes.forEach((note) => noteList.append(createElement("p", "result-note", note)));
+    content.append(noteList);
   }
+
+  const flow = createElement("div", "valuation-flow");
+  appendValuationStep(flow, "Comparable baseline", formatMoney(breakdown.base_price));
+  flow.append(createElement("span", "flow-arrow", "→"));
+  appendValuationStep(flow, "Visual adjustments", `${breakdown.condition || "Unknown"} condition · ${breakdown.tire_condition || "Unknown"} tires`);
+  flow.append(createElement("span", "flow-arrow", "→"));
+  appendValuationStep(flow, "Supported range", `${formatMoney(low)} – ${formatMoney(high)}`, true);
+  content.append(flow, createElement("h3", "breakdown-title", "What the photos showed"));
+
+  const details = [
+    ["Vehicle", [breakdown.year_estimate, breakdown.make, breakdown.model, breakdown.trim].filter(Boolean).join(" ") || "Not reported"],
+    ["Condition", breakdown.condition || "Not reported"],
+    ["Tires", breakdown.tire_condition || "Not reported"],
+    ["Views analyzed", breakdown.views_used ?? "Not reported"],
+    ["Cabin photo", breakdown.interior_included === true ? "Included" : breakdown.interior_included === false ? "Not included" : "Not reported"],
+  ];
+  const detailList = createElement("dl", "breakdown-grid");
+  details.forEach(([label, value]) => {
+    const item = createElement("div", "breakdown-item");
+    item.append(createElement("dt", "", label), createElement("dd", "", String(value)));
+    detailList.append(item);
+  });
+  content.append(detailList);
+
+  const damage = Array.isArray(breakdown.damage)
+    ? breakdown.damage.map((item) => typeof item === "string" ? item : item?.description).filter(Boolean)
+    : [];
+  content.append(createElement("p", "damage-summary", damage.length ? `Visible damage considered: ${damage.join("; ")}.` : "No visible damage was reported in the analyzed views."));
+  showResult("priced", "Estimated truck value", "A comps-backed range adjusted using facts extracted from the submitted photos.", content);
+}
+
+function renderNeedsMoreInfo(response) {
+  const content = createElement("div");
+  if (response.reason) content.append(createElement("p", "result-reason", `Gap identified: ${response.reason}`));
+  const actions = createElement("div", "result-actions");
+  const retryButton = createElement("button", "button button-primary", "Start a focused recapture");
+  retryButton.type = "button";
+  retryButton.addEventListener("click", () => {
+    const guidance = response.message || response.reason || "Capture the requested missing view.";
+    resetSession({ confirmUser: false, followupMessage: `${guidance} Start a new live session when ready.` });
+    document.querySelector(".capture-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  actions.append(retryButton);
+  content.append(actions);
+  showResult("needs-info", "We need one more useful view", response.message || "The current evidence cannot support a confident estimate.", content);
+}
+
+function renderErrorResult(message) {
+  const actions = createElement("div", "result-actions");
+  const retryButton = createElement("button", "button button-secondary", "Try submitting again");
+  retryButton.type = "button";
+  retryButton.addEventListener("click", submitSession);
+  actions.append(retryButton);
+  showResult("error", "We could not complete the estimate", message || "Please try again.", actions);
+}
+
+function renderBackendResponse(response = {}) {
+  if (response.status === "priced") renderPricedResult(response);
+  else if (response.status === "needs_more_info") renderNeedsMoreInfo(response);
+  else renderErrorResult(response.message);
 }
 
 async function submitSession() {
@@ -517,25 +707,33 @@ async function submitSession() {
   const endpoint = document.body.dataset.predictEndpoint;
   window.dispatchEvent(new CustomEvent("fleetworth:capture-ready", { detail: { manifest: payload.manifest } }));
   if (!endpoint) {
-    showResult("ready", "Evidence package ready", `${captures.length} photos and the session video are ready for the FastAPI /predict endpoint.`);
+    const cabinCopy = payload.manifest.interior_included ? " plus one cabin photo" : " without a cabin photo";
+    showResult("ready", "Evidence package ready", `${captures.length} exterior photos${cabinCopy} and the session video are ready for the FastAPI /predict endpoint.`);
     return;
   }
-  submitButton.disabled = true;
+  isSubmitting = true;
+  renderReview();
   showResult("loading", "Analyzing truck evidence", "Extracting visible truck facts and comparing them with market data…");
   try {
     const response = await fetch(endpoint, { method: "POST", body: payload.formData });
-    renderBackendResponse(await response.json());
-  } catch {
-    showResult("error", "Analysis service unavailable", "Your evidence remains in this browser. Check the backend connection and try again.");
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.message || `The analysis service returned ${response.status}.`);
+    renderBackendResponse(data);
+  } catch (error) {
+    renderErrorResult(error.message || "Your evidence remains in this browser. Check the backend connection and try again.");
   } finally {
-    submitButton.disabled = false;
+    isSubmitting = false;
+    renderReview();
   }
 }
 
-function resetSession() {
-  if (!window.confirm("Discard the recorded session and all snapped photos?")) return;
+function resetSession({ confirmUser = true, followupMessage = "Session discarded." } = {}) {
+  if (confirmUser && !window.confirm("Discard the recorded session and all snapped photos?")) return;
   captures.forEach((capture) => URL.revokeObjectURL(capture.url));
   captures.splice(0, captures.length);
+  clearInteriorPhoto();
+  interiorIncluded.checked = false;
+  renderInteriorChoice();
   if (sessionVideoUrl) URL.revokeObjectURL(sessionVideoUrl);
   sessionVideo = undefined;
   sessionVideoUrl = undefined;
@@ -550,7 +748,7 @@ function resetSession() {
   startButton.disabled = !cameraStream;
   clearResult();
   setSessionState(cameraStream ? "Camera ready" : "Ready to capture", "ready");
-  actionMessage.textContent = "Session discarded.";
+  actionMessage.textContent = followupMessage;
   renderAll();
 }
 
@@ -577,9 +775,16 @@ cameraSelect.addEventListener("change", () => { if (!isRecording && cameraSelect
 startButton.addEventListener("click", startSession);
 stopButton.addEventListener("click", stopSession);
 captureButton.addEventListener("click", () => captureFrame());
-resetButton.addEventListener("click", resetSession);
+resetButton.addEventListener("click", () => resetSession());
 submitButton.addEventListener("click", submitSession);
 autoCapture.addEventListener("change", () => { stableSince = 0; });
+interiorIncluded.addEventListener("change", renderInteriorChoice);
+interiorPhotoInput.addEventListener("change", selectInteriorPhoto);
+removeInteriorButton.addEventListener("click", () => {
+  clearInteriorPhoto();
+  interiorMessage.textContent = "Choose a cabin photo, or turn the option off to continue without one.";
+  renderReview();
+});
 navigator.mediaDevices?.addEventListener("devicechange", () => refreshCameraList().catch(() => {}));
 window.addEventListener("beforeunload", () => {
   if (mediaRecorder?.state === "recording") mediaRecorder.stop();
@@ -588,6 +793,7 @@ window.addEventListener("beforeunload", () => {
   cameraStream?.getTracks().forEach((track) => track.stop());
   captures.forEach((capture) => URL.revokeObjectURL(capture.url));
   if (sessionVideoUrl) URL.revokeObjectURL(sessionVideoUrl);
+  if (interiorPhoto?.url) URL.revokeObjectURL(interiorPhoto.url);
 });
 
 window.FleetworthCapture = { buildFormData, getManifest: () => buildFormData()?.manifest || null, showResponse: renderBackendResponse };
