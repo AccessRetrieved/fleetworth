@@ -216,6 +216,18 @@ function createElement(tag, className, text) {
   return element;
 }
 
+function apiOrigin() {
+  // annotated_damage_photos paths are backend-relative (e.g.
+  // "/results/<id>/photo_0_annotated.jpg"); the frontend is served from a
+  // different origin, so resolve them against the backend's own origin.
+  const endpoint = document.body.dataset.predictEndpoint || "";
+  try {
+    return new URL(endpoint, window.location.href).origin;
+  } catch {
+    return "";
+  }
+}
+
 function showResult(type, title, message, content) {
   const labels = { priced: "Estimate ready", "needs-info": "More evidence needed", loading: "Analyzing evidence", ready: "Handoff ready", error: "Something went wrong" };
   resultPanel.className = `result-panel is-${type}`;
@@ -693,6 +705,22 @@ function renderPricedResult(response) {
     ? breakdown.damage.map((item) => typeof item === "string" ? item : item?.description).filter(Boolean)
     : [];
   content.append(createElement("p", "damage-summary", damage.length ? `Visible damage considered: ${damage.join("; ")}.` : "No visible damage was reported in the analyzed views."));
+
+  const annotatedPhotos = Array.isArray(breakdown.annotated_damage_photos) ? breakdown.annotated_damage_photos.filter(Boolean) : [];
+  if (annotatedPhotos.length) {
+    const origin = apiOrigin();
+    content.append(createElement("h3", "breakdown-title", "Flagged damage"));
+    const gallery = createElement("div", "damage-photo-gallery");
+    annotatedPhotos.forEach((path) => {
+      const img = document.createElement("img");
+      img.className = "damage-photo";
+      img.src = origin ? `${origin}${path}` : path;
+      img.alt = "Photo with detected damage highlighted";
+      gallery.append(img);
+    });
+    content.append(gallery);
+  }
+
   showResult("priced", "Estimated truck value", "A comps-backed range adjusted using facts extracted from the submitted photos.", content);
 }
 

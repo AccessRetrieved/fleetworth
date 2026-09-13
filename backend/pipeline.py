@@ -24,7 +24,9 @@ def run_pipeline(
     exterior photos from one guided capture session.
     submission_id: when given, triggers Phase 2c — any photo with
     localized damage gets an annotated copy saved to
-    results/<submission_id>/ (local side effect, not returned here).
+    results/<submission_id>/, and a priced result's breakdown includes
+    "annotated_damage_photos": a list of URL paths (served by main.py's
+    /results static mount) the frontend can render directly.
 
     Returns one of:
       {"status": "priced", "price_range": [...], "confidence": ..., "notes": [...], "breakdown": {...}}
@@ -44,17 +46,21 @@ def run_pipeline(
             # Reject near-identical repeats of a view already counted —
             # otherwise MIN_USABLE_PHOTOS can be satisfied with the same
             # shot taken 3 times instead of real coverage.
+            photo_hash = average_hash(photo)
+            if photo_hash is not None and seen_hashes:
+                closest = min(bin(photo_hash ^ h).count("1") for h in seen_hashes)
+                print(f"[dup-check] closest Hamming distance to an accepted photo: {closest}", flush=True)
             if is_near_duplicate(photo, seen_hashes):
                 duplicate_count += 1
                 extractions.append(None)
                 continue
-            photo_hash = average_hash(photo)
             if photo_hash is not None:
                 seen_hashes.append(photo_hash)
         extractions.append(extract_from_image(photo, client=client))
 
+    annotated_paths = []
     if submission_id is not None:
-        save_annotated_photos(submission_id, photos, extractions)
+        annotated_paths = save_annotated_photos(submission_id, photos, extractions)
 
     gate = evaluate(extractions, duplicate_count=duplicate_count)
     if gate["status"] != "priced":
@@ -62,4 +68,8 @@ def run_pipeline(
 
     usable = [e for e in extractions if e is not None]
     fused = fuse_extractions(usable)
-    return {"status": "priced", **compute_price(fused)}
+    result = {"status": "priced", **compute_price(fused)}
+    result["breakdown"]["annotated_damage_photos"] = [
+        f"/results/{submission_id}/{path.name}" for path in annotated_paths
+    ]
+    return result

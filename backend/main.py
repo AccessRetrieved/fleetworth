@@ -11,7 +11,9 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
+from damage_visualization import RESULTS_DIR
 from pipeline import run_pipeline
 
 app = FastAPI(title="Fleetworth Backend")
@@ -22,6 +24,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serves the annotated damage-box photos Phase 2c already saves locally, so
+# the frontend can show them instead of them only being a local debug aid.
+RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/results", StaticFiles(directory=RESULTS_DIR), name="results")
 
 UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
 MIN_PHOTOS = 1  # pipeline.limits.MIN_USABLE_PHOTOS gates the real coverage requirement;

@@ -198,6 +198,8 @@ h2.step-title .step-index { font-size: 0.76rem; height: 28px; width: 28px; }
 .breakdown-item dt { color: var(--muted); font-size: 0.66rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
 .breakdown-item dd { color: #dde3e9; font-family: var(--display); font-size: 0.84rem; font-weight: 600; margin: 5px 0 0; }
 .damage-summary { color: var(--muted); font-size: 0.8rem; line-height: 1.5; margin: 14px 0 0; }
+.damage-photo-gallery { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); margin-top: 12px; }
+.damage-photo { border: 1px solid var(--line); border-radius: 10px; display: block; max-width: 100%; object-fit: cover; width: 100%; }
 .result-actions { align-items: center; display: flex; gap: 12px; margin-top: 20px; }
 .result-reason { color: #ffe0ad; font-size: 0.8rem; font-weight: 600; margin-top: 12px; }
 
