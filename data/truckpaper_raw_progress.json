@@ -68,7 +68,75 @@
     "done": true
   },
   "Refrigerated Truck": {
+    "pages_done": 23,
+    "done": true
+  },
+  "Volvo VHD": {
     "pages_done": 14,
+    "done": true
+  },
+  "Volvo VAH": {
+    "pages_done": 4,
+    "done": true
+  },
+  "Peterbilt 220": {
+    "pages_done": 5,
+    "done": true
+  },
+  "Kenworth K270": {
+    "pages_done": 2,
+    "done": true
+  },
+  "Reefer Truck": {
+    "pages_done": 24,
+    "done": true
+  },
+  "Cab Chassis Truck": {
+    "pages_done": 35,
+    "done": false
+  },
+  "Volvo": {
+    "pages_done": 6,
+    "done": true
+  },
+  "VHD": {
+    "pages_done": 14,
+    "done": true
+  },
+  "VAH": {
+    "pages_done": 4,
+    "done": true
+  },
+  "Peterbilt": {
+    "pages_done": 19,
+    "done": true
+  },
+  "220": {
+    "pages_done": 17,
+    "done": false
+  },
+  "Kenworth": {
+    "pages_done": 29,
+    "done": true
+  },
+  "K270": {
+    "pages_done": 2,
+    "done": true
+  },
+  "Cement": {
+    "pages_done": 32,
+    "done": true
+  },
+  "Mixer": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Truck": {
+    "pages_done": 24,
+    "done": true
+  },
+  "Asphalt": {
+    "pages_done": 10,
     "done": false
   }
 }
