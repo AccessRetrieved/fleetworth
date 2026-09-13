@@ -58,5 +58,17 @@
   "Bucket": {
     "pages_done": 3,
     "done": true
+  },
+  "Peterbilt 579": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Peterbilt 567": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Kenworth W900": {
+    "pages_done": 1,
+    "done": false
   }
 }
