@@ -52,7 +52,19 @@
     "done": true
   },
   "Freightliner Columbia": {
-    "pages_done": 126,
-    "done": false
+    "pages_done": 184,
+    "done": true
+  },
+  "Freightliner Coronado": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Crane Truck": {
+    "pages_done": 24,
+    "done": true
+  },
+  "Day Cab Truck": {
+    "pages_done": 5,
+    "done": true
   }
 }
