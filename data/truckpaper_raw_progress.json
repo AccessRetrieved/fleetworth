@@ -1,0 +1,34 @@
+{
+  "Volvo VNL": {
+    "pages_done": 63,
+    "done": true
+  },
+  "Volvo VNR": {
+    "pages_done": 20,
+    "done": true
+  },
+  "International LT": {
+    "pages_done": 109,
+    "done": true
+  },
+  "International LoneStar": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Kenworth T880": {
+    "pages_done": 93,
+    "done": true
+  },
+  "Peterbilt 567": {
+    "pages_done": 72,
+    "done": true
+  },
+  "Western Star 4900": {
+    "pages_done": 19,
+    "done": true
+  },
+  "Mack Pinnacle": {
+    "pages_done": 29,
+    "done": true
+  }
+}

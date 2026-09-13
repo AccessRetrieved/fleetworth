@@ -1,0 +1,8 @@
+# truckpaper_raw.jsonl is append-only across scraper runs and machines --
+# every side only ever adds new unique lines, never edits existing ones.
+# The union merge driver takes both sides' additions instead of raising a
+# conflict, so two machines pushing their own scraped growth concurrently
+# combine automatically. Exact/near duplicates that slip through (e.g. two
+# machines happened to scrape the same listing) are caught downstream by
+# clean_data.py's own dedup, so a raw union merge never needs to be exact.
+data/truckpaper_raw.jsonl merge=union

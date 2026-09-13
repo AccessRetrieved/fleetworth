@@ -1,0 +1,773 @@
+warning: `VIRTUAL_ENV=/Users/jonathantran/Documents/ChatGPT/54 Hacks/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+Resuming — 1978 listings already saved.
+Traceback (most recent call last):
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/scrape_truckpaper.py", line 336, in <module>
+    scrape(sys.argv[1:] or None)
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/scrape_truckpaper.py", line 235, in scrape
+    browser = p.chromium.launch(headless=True)
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/.venv/lib/python3.14/site-packages/playwright/sync_api/_generated.py", line 16702, in launch
+    self._sync(
+    ~~~~~~~~~~^
+        self._impl_obj.launch(
+        ^^^^^^^^^^^^^^^^^^^^^^
+    ...<17 lines>...
+        )
+        ^
+    )
+    ^
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/.venv/lib/python3.14/site-packages/playwright/_impl/_sync_base.py", line 115, in _sync
+    return task.result()
+           ~~~~~~~~~~~^^
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/.venv/lib/python3.14/site-packages/playwright/_impl/_browser_type.py", line 97, in launch
+    await self._channel.send(
+        "launch", TimeoutSettings.launch_timeout, params
+    )
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/.venv/lib/python3.14/site-packages/playwright/_impl/_connection.py", line 76, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/.venv/lib/python3.14/site-packages/playwright/_impl/_connection.py", line 632, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.Error: BrowserType.launch: Executable doesn't exist at /Users/jonathantran/Library/Caches/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-mac-arm64/chrome-headless-shell
+╔════════════════════════════════════════════════════════════╗
+║ Looks like Playwright was just installed or updated.       ║
+║ Please run the following command to download new browsers: ║
+║                                                            ║
+║     playwright install                                     ║
+║                                                            ║
+║ <3 Playwright Team                                         ║
+╚════════════════════════════════════════════════════════════╝
+warning: `VIRTUAL_ENV=/Users/jonathantran/Documents/ChatGPT/54 Hacks/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+Resuming — 1978 listings already saved.
+Traceback (most recent call last):
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/scrape_truckpaper.py", line 336, in <module>
+    scrape(sys.argv[1:] or None)
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/scrape_truckpaper.py", line 235, in scrape
+    browser = p.chromium.launch(headless=True)
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/.venv/lib/python3.14/site-packages/playwright/sync_api/_generated.py", line 16702, in launch
+    self._sync(
+    ~~~~~~~~~~^
+        self._impl_obj.launch(
+        ^^^^^^^^^^^^^^^^^^^^^^
+    ...<17 lines>...
+        )
+        ^
+    )
+    ^
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/.venv/lib/python3.14/site-packages/playwright/_impl/_sync_base.py", line 115, in _sync
+    return task.result()
+           ~~~~~~~~~~~^^
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/.venv/lib/python3.14/site-packages/playwright/_impl/_browser_type.py", line 97, in launch
+    await self._channel.send(
+        "launch", TimeoutSettings.launch_timeout, params
+    )
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/.venv/lib/python3.14/site-packages/playwright/_impl/_connection.py", line 76, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/.venv/lib/python3.14/site-packages/playwright/_impl/_connection.py", line 632, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.Error: BrowserType.launch: Executable doesn't exist at /Users/jonathantran/Library/Caches/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-mac-arm64/chrome-headless-shell
+╔════════════════════════════════════════════════════════════╗
+║ Looks like Playwright was just installed or updated.       ║
+║ Please run the following command to download new browsers: ║
+║                                                            ║
+║     playwright install                                     ║
+║                                                            ║
+║ <3 Playwright Team                                         ║
+╚════════════════════════════════════════════════════════════╝
+Resuming — 1978 listings already saved.
+  [Volvo VNL] 1762 listings → 63 pages
+  [Volvo VNL p1/63] 28 cards, 18 new saved (total new: 18)
+  [Volvo VNL p2/63] 28 cards, 10 new saved (total new: 28)
+  [Volvo VNL p3/63] 28 cards, 9 new saved (total new: 37)
+  [Volvo VNL p4/63] 28 cards, 9 new saved (total new: 46)
+  [Volvo VNL p5/63] 28 cards, 16 new saved (total new: 62)
+  [Volvo VNL p6/63] 28 cards, 12 new saved (total new: 74)
+Traceback (most recent call last):
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/scrape_truckpaper.py", line 336, in <module>
+    scrape(sys.argv[1:] or None)
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/scrape_truckpaper.py", line 263, in scrape
+    time.sleep(wait)
+    ~~~~~~~~~~^^^^^^
+KeyboardInterrupt
+Resuming — 2052 listings already saved.
+  [Volvo VNL] 1762 listings → 63 pages
+  [Volvo VNL p7/63] 28 cards, 15 new saved (total new: 15)
+  [Volvo VNL p8/63] 28 cards, 8 new saved (total new: 23)
+  [Volvo VNL p9/63] 28 cards, 12 new saved (total new: 35)
+  [Volvo VNL p10/63] 28 cards, 16 new saved (total new: 51)
+  [Volvo VNL p11/63] 28 cards, 7 new saved (total new: 58)
+  [Volvo VNL p12/63] 28 cards, 13 new saved (total new: 71)
+  [Volvo VNL p13/63] 28 cards, 17 new saved (total new: 88)
+  [Volvo VNL p14/63] 28 cards, 11 new saved (total new: 99)
+  [Volvo VNL p15/63] 28 cards, 24 new saved (total new: 123)
+  [Volvo VNL p16/63] 28 cards, 28 new saved (total new: 151)
+Traceback (most recent call last):
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/scrape_truckpaper.py", line 336, in <module>
+    scrape(sys.argv[1:] or None)
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/scrape_truckpaper.py", line 266, in scrape
+    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/.venv/lib/python3.14/site-packages/playwright/sync_api/_generated.py", line 9875, in goto
+    self._sync(
+    ~~~~~~~~~~^
+        self._impl_obj.goto(
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        )
+        ^
+    )
+    ^
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/.venv/lib/python3.14/site-packages/playwright/_impl/_sync_base.py", line 113, in _sync
+    self._dispatcher_fiber.switch()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/.venv/lib/python3.14/site-packages/playwright/sync_api/_context_manager.py", line 56, in greenlet_main
+    self._loop.run_until_complete(self._connection.run_as_sync())
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/base_events.py", line 706, in run_until_complete
+    self.run_forever()
+    ~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/base_events.py", line 677, in run_forever
+    self._run_once()
+    ~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/base_events.py", line 2018, in _run_once
+    event_list = self._selector.select(timeout)
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/selectors.py", line 548, in select
+    kev_list = self._selector.control(None, max_ev, timeout)
+KeyboardInterrupt
+Future exception was never retrieved
+future: <Future finished exception=TargetClosedError('Target page, context or browser has been closed')>
+playwright._impl._errors.TargetClosedError: Target page, context or browser has been closed
+Task was destroyed but it is pending!
+task: <Task cancelling name='Task-2393' coro=<Page.goto() done, defined at /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/.venv/lib/python3.14/site-packages/playwright/_impl/_page.py:553> wait_for=<Future finished result=None> cb=[SyncBase._sync.<locals>.<lambda>() at /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/.venv/lib/python3.14/site-packages/playwright/_impl/_sync_base.py:111]>
+Resuming — 2203 listings already saved.
+  [Volvo VNL] 1762 listings → 63 pages
+  [Volvo VNL p17/63] 28 cards, 23 new saved (total new: 23)
+  [Volvo VNL p18/63] 28 cards, 17 new saved (total new: 40)
+Traceback (most recent call last):
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/scrape_truckpaper.py", line 336, in <module>
+    scrape(sys.argv[1:] or None)
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scraper/scrape_truckpaper.py", line 263, in scrape
+    time.sleep(wait)
+    ~~~~~~~~~~^^^^^^
+KeyboardInterrupt
+Resuming — 2243 listings already saved.
+  [Volvo VNL] 1762 listings → 63 pages
+  [Volvo VNL p19/63] 28 cards, 5 new saved (total new: 5)
+  [Volvo VNL p20/63] 28 cards, 25 new saved (total new: 30)
+  [Volvo VNL p21/63] 28 cards, 20 new saved (total new: 50)
+  [Volvo VNL p22/63] 28 cards, 26 new saved (total new: 76)
+  [Volvo VNL p23/63] 28 cards, 26 new saved (total new: 102)
+  [Volvo VNL p24/63] 28 cards, 28 new saved (total new: 130)
+  [Volvo VNL p25/63] 28 cards, 26 new saved (total new: 156)
+  [Volvo VNL p26/63] 28 cards, 25 new saved (total new: 181)
+  [Volvo VNL p27/63] 28 cards, 17 new saved (total new: 198)
+  [Volvo VNL p28/63] 28 cards, 16 new saved (total new: 214)
+  [Volvo VNL p29/63] 28 cards, 17 new saved (total new: 231)
+  [Volvo VNL p30/63] 28 cards, 0 new saved (total new: 231)
+  [Volvo VNL p31/63] 28 cards, 6 new saved (total new: 237)
+  [Volvo VNL p32/63] 28 cards, 10 new saved (total new: 247)
+  [Volvo VNL p33/63] 28 cards, 24 new saved (total new: 271)
+  [Volvo VNL p34/63] 28 cards, 28 new saved (total new: 299)
+  [Volvo VNL p35/63] 28 cards, 28 new saved (total new: 327)
+  [Volvo VNL p36/63] 28 cards, 25 new saved (total new: 352)
+  [Volvo VNL p37/63] 28 cards, 27 new saved (total new: 379)
+  [Volvo VNL p38/63] 28 cards, 27 new saved (total new: 406)
+  [Volvo VNL p39/63] 28 cards, 27 new saved (total new: 433)
+  [Volvo VNL p40/63] 28 cards, 28 new saved (total new: 461)
+  [Volvo VNL p41/63] 28 cards, 26 new saved (total new: 487)
+  [Volvo VNL p42/63] 28 cards, 25 new saved (total new: 512)
+  [Volvo VNL p43/63] 28 cards, 17 new saved (total new: 529)
+  [Volvo VNL p44/63] 28 cards, 27 new saved (total new: 556)
+  [Volvo VNL p45/63] 28 cards, 17 new saved (total new: 573)
+  [Volvo VNL p46/63] 28 cards, 4 new saved (total new: 577)
+  [Volvo VNL p47/63] 28 cards, 0 new saved (total new: 577)
+  [Volvo VNL p48/63] 28 cards, 0 new saved (total new: 577)
+  [Volvo VNL p49/63] 28 cards, 0 new saved (total new: 577)
+  [Volvo VNL p50/63] 28 cards, 22 new saved (total new: 599)
+  [Volvo VNL p51/63] 28 cards, 7 new saved (total new: 606)
+  [Volvo VNL p52/63] 28 cards, 10 new saved (total new: 616)
+  [Volvo VNL p53/63] 28 cards, 16 new saved (total new: 632)
+  [Volvo VNL p54/63] 28 cards, 28 new saved (total new: 660)
+  [Volvo VNL p55/63] 28 cards, 26 new saved (total new: 686)
+  [Volvo VNL p56/63] 28 cards, 26 new saved (total new: 712)
+  [Volvo VNL p57/63] 28 cards, 24 new saved (total new: 736)
+  [Volvo VNL p58/63] 28 cards, 20 new saved (total new: 756)
+  [Volvo VNL p59/63] 28 cards, 16 new saved (total new: 772)
+  [Volvo VNL p60/63] 28 cards, 15 new saved (total new: 787)
+  [Volvo VNL p61/63] 28 cards, 9 new saved (total new: 796)
+  [Volvo VNL p62/63] 28 cards, 3 new saved (total new: 799)
+  [Volvo VNL p63/63] 28 cards, 5 new saved (total new: 804)
+  [Volvo VNR] 553 listings → 20 pages
+  [Volvo VNR p1/20] 28 cards, 26 new saved (total new: 830)
+  [Volvo VNR p2/20] 28 cards, 27 new saved (total new: 857)
+  [Volvo VNR p3/20] 28 cards, 24 new saved (total new: 881)
+  [Volvo VNR p4/20] 28 cards, 25 new saved (total new: 906)
+  [Volvo VNR p5/20] 28 cards, 26 new saved (total new: 932)
+  [Volvo VNR p6/20] 28 cards, 19 new saved (total new: 951)
+  [Volvo VNR p7/20] 28 cards, 26 new saved (total new: 977)
+  [Volvo VNR p8/20] 28 cards, 20 new saved (total new: 997)
+  [Volvo VNR p9/20] 28 cards, 6 new saved (total new: 1003)
+  [Volvo VNR p10/20] 28 cards, 6 new saved (total new: 1009)
+  [Volvo VNR p11/20] 28 cards, 26 new saved (total new: 1035)
+  [Volvo VNR p12/20] 28 cards, 28 new saved (total new: 1063)
+  [Volvo VNR p13/20] 28 cards, 24 new saved (total new: 1087)
+  [Volvo VNR p14/20] 28 cards, 26 new saved (total new: 1113)
+  [Volvo VNR p15/20] 28 cards, 27 new saved (total new: 1140)
+  [Volvo VNR p16/20] 28 cards, 26 new saved (total new: 1166)
+  [Volvo VNR p17/20] 28 cards, 21 new saved (total new: 1187)
+  [Volvo VNR p18/20] 28 cards, 21 new saved (total new: 1208)
+  [Volvo VNR p19/20] 28 cards, 19 new saved (total new: 1227)
+  [Volvo VNR p20/20] 21 cards, 7 new saved (total new: 1234)
+  [International LT] 3046 listings → 109 pages
+  [International LT p1/109] 28 cards, 24 new saved (total new: 1258)
+  [International LT p2/109] 28 cards, 23 new saved (total new: 1281)
+  [International LT p3/109] 28 cards, 23 new saved (total new: 1304)
+  [International LT p4/109] 28 cards, 15 new saved (total new: 1319)
+  [International LT p5/109] 28 cards, 20 new saved (total new: 1339)
+  [International LT p6/109] 28 cards, 24 new saved (total new: 1363)
+  [International LT p7/109] 28 cards, 24 new saved (total new: 1387)
+  [International LT p8/109] 28 cards, 24 new saved (total new: 1411)
+  [International LT p9/109] 28 cards, 24 new saved (total new: 1435)
+  [International LT p10/109] 28 cards, 24 new saved (total new: 1459)
+  [International LT p11/109] 28 cards, 24 new saved (total new: 1483)
+  [International LT p12/109] 28 cards, 24 new saved (total new: 1507)
+  [International LT p13/109] 28 cards, 24 new saved (total new: 1531)
+  [International LT p14/109] 28 cards, 24 new saved (total new: 1555)
+  [International LT p15/109] 28 cards, 18 new saved (total new: 1573)
+  [International LT p16/109] 28 cards, 25 new saved (total new: 1598)
+  [International LT p17/109] 28 cards, 28 new saved (total new: 1626)
+  [International LT p18/109] 28 cards, 23 new saved (total new: 1649)
+  [International LT p19/109] 28 cards, 17 new saved (total new: 1666)
+  [International LT p20/109] 28 cards, 23 new saved (total new: 1689)
+  [International LT p21/109] 28 cards, 25 new saved (total new: 1714)
+  [International LT p22/109] 28 cards, 23 new saved (total new: 1737)
+  [International LT p23/109] 28 cards, 27 new saved (total new: 1764)
+  [International LT p24/109] 28 cards, 19 new saved (total new: 1783)
+  [International LT p25/109] 28 cards, 26 new saved (total new: 1809)
+  [International LT p26/109] 28 cards, 26 new saved (total new: 1835)
+  [International LT p27/109] 28 cards, 22 new saved (total new: 1857)
+  [International LT p28/109] 28 cards, 27 new saved (total new: 1884)
+  [International LT p29/109] 28 cards, 28 new saved (total new: 1912)
+  [International LT p30/109] 28 cards, 28 new saved (total new: 1940)
+  [International LT p31/109] 28 cards, 3 new saved (total new: 1943)
+  [International LT p32/109] 28 cards, 0 new saved (total new: 1943)
+  [International LT p33/109] 28 cards, 0 new saved (total new: 1943)
+  [International LT p34/109] 28 cards, 0 new saved (total new: 1943)
+  [International LT p35/109] 28 cards, 0 new saved (total new: 1943)
+  [International LT p36/109] 28 cards, 27 new saved (total new: 1970)
+  [International LT p37/109] 28 cards, 6 new saved (total new: 1976)
+  [International LT p38/109] 28 cards, 18 new saved (total new: 1994)
+  [International LT p39/109] 28 cards, 22 new saved (total new: 2016)
+  [International LT p40/109] 28 cards, 14 new saved (total new: 2030)
+  [International LT p41/109] 28 cards, 27 new saved (total new: 2057)
+  [International LT p42/109] 28 cards, 14 new saved (total new: 2071)
+  [International LT p43/109] 28 cards, 27 new saved (total new: 2098)
+  [International LT p44/109] 28 cards, 23 new saved (total new: 2121)
+  [International LT p45/109] 28 cards, 27 new saved (total new: 2148)
+  [International LT p46/109] 28 cards, 27 new saved (total new: 2175)
+  [International LT p47/109] 28 cards, 17 new saved (total new: 2192)
+  [International LT p48/109] 28 cards, 26 new saved (total new: 2218)
+  [International LT p49/109] 28 cards, 28 new saved (total new: 2246)
+  [International LT p50/109] 28 cards, 16 new saved (total new: 2262)
+  [International LT p51/109] 28 cards, 23 new saved (total new: 2285)
+  [International LT p52/109] 28 cards, 22 new saved (total new: 2307)
+  [International LT p53/109] 28 cards, 28 new saved (total new: 2335)
+  [International LT p54/109] 28 cards, 27 new saved (total new: 2362)
+  [International LT p55/109] 28 cards, 25 new saved (total new: 2387)
+  [International LT p56/109] 28 cards, 27 new saved (total new: 2414)
+  [International LT p57/109] 28 cards, 27 new saved (total new: 2441)
+  [International LT p58/109] 28 cards, 23 new saved (total new: 2464)
+  [International LT p59/109] 28 cards, 22 new saved (total new: 2486)
+  [International LT p60/109] 28 cards, 26 new saved (total new: 2512)
+  [International LT p61/109] 28 cards, 24 new saved (total new: 2536)
+  [International LT p62/109] 28 cards, 18 new saved (total new: 2554)
+  [International LT p63/109] 28 cards, 14 new saved (total new: 2568)
+  [International LT p64/109] 28 cards, 26 new saved (total new: 2594)
+  [International LT p65/109] 28 cards, 27 new saved (total new: 2621)
+  [International LT p66/109] 28 cards, 24 new saved (total new: 2645)
+  [International LT p67/109] 28 cards, 22 new saved (total new: 2667)
+  [International LT p68/109] 28 cards, 19 new saved (total new: 2686)
+  [International LT p69/109] 28 cards, 23 new saved (total new: 2709)
+  [International LT p70/109] 28 cards, 22 new saved (total new: 2731)
+  [International LT p71/109] 28 cards, 24 new saved (total new: 2755)
+  [International LT p72/109] 28 cards, 26 new saved (total new: 2781)
+  [International LT p73/109] 28 cards, 11 new saved (total new: 2792)
+  [International LT p74/109] 28 cards, 28 new saved (total new: 2820)
+  [International LT p75/109] 28 cards, 27 new saved (total new: 2847)
+  [International LT p76/109] 28 cards, 28 new saved (total new: 2875)
+  [International LT p77/109] 28 cards, 28 new saved (total new: 2903)
+  [International LT p78/109] 28 cards, 28 new saved (total new: 2931)
+  [International LT p79/109] 28 cards, 26 new saved (total new: 2957)
+  [International LT p80/109] 28 cards, 26 new saved (total new: 2983)
+  [International LT p81/109] 28 cards, 27 new saved (total new: 3010)
+  [International LT p82/109] 28 cards, 28 new saved (total new: 3038)
+  [International LT p83/109] 28 cards, 28 new saved (total new: 3066)
+  [International LT p84/109] 28 cards, 28 new saved (total new: 3094)
+  [International LT p85/109] 28 cards, 7 new saved (total new: 3101)
+  [International LT p86/109] 28 cards, 24 new saved (total new: 3125)
+  [International LT p87/109] 28 cards, 27 new saved (total new: 3152)
+  [International LT p88/109] 28 cards, 28 new saved (total new: 3180)
+  [International LT p89/109] 28 cards, 27 new saved (total new: 3207)
+  [International LT p90/109] 28 cards, 28 new saved (total new: 3235)
+  [International LT p91/109] 28 cards, 25 new saved (total new: 3260)
+  [International LT p92/109] 28 cards, 28 new saved (total new: 3288)
+  [International LT p93/109] 28 cards, 28 new saved (total new: 3316)
+  [International LT p94/109] 28 cards, 28 new saved (total new: 3344)
+  [International LT p95/109] 28 cards, 28 new saved (total new: 3372)
+  [International LT p96/109] 28 cards, 28 new saved (total new: 3400)
+  [International LT p97/109] 28 cards, 24 new saved (total new: 3424)
+  [International LT p98/109] 28 cards, 18 new saved (total new: 3442)
+  [International LT p99/109] 28 cards, 28 new saved (total new: 3470)
+  [International LT p100/109] 28 cards, 28 new saved (total new: 3498)
+  [International LT p101/109] 28 cards, 19 new saved (total new: 3517)
+  [International LT p102/109] 28 cards, 0 new saved (total new: 3517)
+  [International LT p103/109] 28 cards, 28 new saved (total new: 3545)
+  [International LT p104/109] 28 cards, 25 new saved (total new: 3570)
+  [International LT p105/109] 28 cards, 23 new saved (total new: 3593)
+  [International LT p106/109] 28 cards, 27 new saved (total new: 3620)
+  [International LT p107/109] 28 cards, 27 new saved (total new: 3647)
+  [International LT p108/109] 28 cards, 26 new saved (total new: 3673)
+  [International LT p109/109] 24 cards, 1 new saved (total new: 3674)
+  [International LoneStar] 75 listings → 3 pages
+  [International LoneStar p1/3] 28 cards, 27 new saved (total new: 3701)
+  [International LoneStar p2/3] 28 cards, 24 new saved (total new: 3725)
+  [International LoneStar p3/3] 19 cards, 13 new saved (total new: 3738)
+  [Kenworth T880] 2592 listings → 93 pages
+  [Kenworth T880 p1/93] 28 cards, 21 new saved (total new: 3759)
+  [Kenworth T880 p2/93] 28 cards, 19 new saved (total new: 3778)
+  [Kenworth T880 p3/93] 28 cards, 17 new saved (total new: 3795)
+  [Kenworth T880 p4/93] 28 cards, 24 new saved (total new: 3819)
+  [Kenworth T880 p5/93] 28 cards, 23 new saved (total new: 3842)
+  [Kenworth T880 p6/93] 28 cards, 24 new saved (total new: 3866)
+  [Kenworth T880 p7/93] 28 cards, 22 new saved (total new: 3888)
+  [Kenworth T880 p8/93] 28 cards, 17 new saved (total new: 3905)
+  [Kenworth T880 p9/93] 28 cards, 21 new saved (total new: 3926)
+  [Kenworth T880 p10/93] 28 cards, 22 new saved (total new: 3948)
+  [Kenworth T880 p11/93] 28 cards, 17 new saved (total new: 3965)
+  [Kenworth T880 p12/93] 28 cards, 23 new saved (total new: 3988)
+  [Kenworth T880 p13/93] 28 cards, 20 new saved (total new: 4008)
+  [Kenworth T880 p14/93] 28 cards, 14 new saved (total new: 4022)
+  [Kenworth T880 p15/93] 28 cards, 15 new saved (total new: 4037)
+  [Kenworth T880 p16/93] 28 cards, 24 new saved (total new: 4061)
+  [Kenworth T880 p17/93] 28 cards, 21 new saved (total new: 4082)
+  [Kenworth T880 p18/93] 28 cards, 22 new saved (total new: 4104)
+  [Kenworth T880 p19/93] 28 cards, 25 new saved (total new: 4129)
+  [Kenworth T880 p20/93] 28 cards, 26 new saved (total new: 4155)
+  [Kenworth T880 p21/93] 28 cards, 24 new saved (total new: 4179)
+  [Kenworth T880 p22/93] 28 cards, 26 new saved (total new: 4205)
+  [Kenworth T880 p23/93] 28 cards, 27 new saved (total new: 4232)
+  [Kenworth T880 p24/93] 28 cards, 28 new saved (total new: 4260)
+  [Kenworth T880 p25/93] 28 cards, 28 new saved (total new: 4288)
+  [Kenworth T880 p26/93] 28 cards, 28 new saved (total new: 4316)
+  [Kenworth T880 p27/93] 28 cards, 28 new saved (total new: 4344)
+  [Kenworth T880 p28/93] 28 cards, 28 new saved (total new: 4372)
+  [Kenworth T880 p29/93] 28 cards, 28 new saved (total new: 4400)
+  [Kenworth T880 p30/93] 28 cards, 28 new saved (total new: 4428)
+  [Kenworth T880 p31/93] 28 cards, 0 new saved (total new: 4428)
+  [Kenworth T880 p32/93] 28 cards, 0 new saved (total new: 4428)
+  [Kenworth T880 p33/93] 28 cards, 0 new saved (total new: 4428)
+  [Kenworth T880 p34/93] 28 cards, 0 new saved (total new: 4428)
+  [Kenworth T880 p35/93] 28 cards, 0 new saved (total new: 4428)
+  [Kenworth T880 p36/93] 28 cards, 0 new saved (total new: 4428)
+  [Kenworth T880 p37/93] 28 cards, 0 new saved (total new: 4428)
+  [Kenworth T880 p38/93] 28 cards, 17 new saved (total new: 4445)
+  [Kenworth T880 p39/93] 28 cards, 28 new saved (total new: 4473)
+  [Kenworth T880 p40/93] 28 cards, 28 new saved (total new: 4501)
+  [Kenworth T880 p41/93] 28 cards, 28 new saved (total new: 4529)
+  [Kenworth T880 p42/93] 28 cards, 28 new saved (total new: 4557)
+  [Kenworth T880 p43/93] 28 cards, 11 new saved (total new: 4568)
+  [Kenworth T880 p44/93] 28 cards, 0 new saved (total new: 4568)
+  [Kenworth T880 p45/93] 28 cards, 0 new saved (total new: 4568)
+  [Kenworth T880 p46/93] 28 cards, 2 new saved (total new: 4570)
+  [Kenworth T880 p47/93] 28 cards, 28 new saved (total new: 4598)
+  [Kenworth T880 p48/93] 28 cards, 28 new saved (total new: 4626)
+  [Kenworth T880 p49/93] 28 cards, 28 new saved (total new: 4654)
+  [Kenworth T880 p50/93] 28 cards, 28 new saved (total new: 4682)
+  [Kenworth T880 p51/93] 28 cards, 28 new saved (total new: 4710)
+  [Kenworth T880 p52/93] 28 cards, 28 new saved (total new: 4738)
+  [Kenworth T880 p53/93] 28 cards, 28 new saved (total new: 4766)
+  [Kenworth T880 p54/93] 28 cards, 3 new saved (total new: 4769)
+  [Kenworth T880 p55/93] 28 cards, 0 new saved (total new: 4769)
+  [Kenworth T880 p56/93] 28 cards, 6 new saved (total new: 4775)
+  [Kenworth T880 p57/93] 28 cards, 28 new saved (total new: 4803)
+  [Kenworth T880 p58/93] 28 cards, 13 new saved (total new: 4816)
+  [Kenworth T880 p59/93] 28 cards, 25 new saved (total new: 4841)
+  [Kenworth T880 p60/93] 28 cards, 25 new saved (total new: 4866)
+  [Kenworth T880 p61/93] 28 cards, 28 new saved (total new: 4894)
+  [Kenworth T880 p62/93] 28 cards, 20 new saved (total new: 4914)
+  [Kenworth T880 p63/93] 28 cards, 28 new saved (total new: 4942)
+  [Kenworth T880 p64/93] 28 cards, 26 new saved (total new: 4968)
+  [Kenworth T880 p65/93] 28 cards, 28 new saved (total new: 4996)
+  [Kenworth T880 p66/93] 28 cards, 22 new saved (total new: 5018)
+  [Kenworth T880 p67/93] 28 cards, 26 new saved (total new: 5044)
+  [Kenworth T880 p68/93] 28 cards, 27 new saved (total new: 5071)
+  [Kenworth T880 p69/93] 28 cards, 28 new saved (total new: 5099)
+  [Kenworth T880 p70/93] 28 cards, 19 new saved (total new: 5118)
+  [Kenworth T880 p71/93] 28 cards, 28 new saved (total new: 5146)
+  [Kenworth T880 p72/93] 28 cards, 25 new saved (total new: 5171)
+  [Kenworth T880 p73/93] 28 cards, 24 new saved (total new: 5195)
+  [Kenworth T880 p74/93] 28 cards, 21 new saved (total new: 5216)
+  [Kenworth T880 p75/93] 28 cards, 27 new saved (total new: 5243)
+  [Kenworth T880 p76/93] 28 cards, 18 new saved (total new: 5261)
+  [Kenworth T880 p77/93] 28 cards, 11 new saved (total new: 5272)
+  [Kenworth T880 p78/93] 28 cards, 25 new saved (total new: 5297)
+  [Kenworth T880 p79/93] 28 cards, 28 new saved (total new: 5325)
+  [Kenworth T880 p80/93] 28 cards, 28 new saved (total new: 5353)
+  [Kenworth T880 p81/93] 28 cards, 28 new saved (total new: 5381)
+  [Kenworth T880 p82/93] 28 cards, 20 new saved (total new: 5401)
+  [Kenworth T880 p83/93] 28 cards, 19 new saved (total new: 5420)
+  [Kenworth T880 p84/93] 28 cards, 5 new saved (total new: 5425)
+  [Kenworth T880 p85/93] 28 cards, 1 new saved (total new: 5426)
+  [Kenworth T880 p86/93] 28 cards, 6 new saved (total new: 5432)
+  [Kenworth T880 p87/93] 28 cards, 4 new saved (total new: 5436)
+  [Kenworth T880 p88/93] 28 cards, 20 new saved (total new: 5456)
+  [Kenworth T880 p89/93] 28 cards, 19 new saved (total new: 5475)
+  [Kenworth T880 p90/93] 28 cards, 3 new saved (total new: 5478)
+  [Kenworth T880 p91/93] 28 cards, 5 new saved (total new: 5483)
+  [Kenworth T880 p92/93] 28 cards, 1 new saved (total new: 5484)
+  [Kenworth T880 p93/93] 18 cards, 0 new saved (total new: 5484)
+  [Peterbilt 567] 2014 listings → 72 pages
+  [Peterbilt 567 p1/72] 28 cards, 20 new saved (total new: 5504)
+  [Peterbilt 567 p2/72] 28 cards, 26 new saved (total new: 5530)
+  [Peterbilt 567 p3/72] 28 cards, 14 new saved (total new: 5544)
+  [Peterbilt 567 p4/72] 28 cards, 20 new saved (total new: 5564)
+  [Peterbilt 567 p5/72] 28 cards, 28 new saved (total new: 5592)
+  [Peterbilt 567 p6/72] 28 cards, 25 new saved (total new: 5617)
+  [Peterbilt 567 p7/72] 28 cards, 14 new saved (total new: 5631)
+  [Peterbilt 567 p8/72] 28 cards, 21 new saved (total new: 5652)
+  [Peterbilt 567 p9/72] 28 cards, 20 new saved (total new: 5672)
+  [Peterbilt 567 p10/72] 28 cards, 14 new saved (total new: 5686)
+  [Peterbilt 567 p11/72] 28 cards, 20 new saved (total new: 5706)
+  [Peterbilt 567 p12/72] 28 cards, 12 new saved (total new: 5718)
+  [Peterbilt 567 p13/72] 28 cards, 25 new saved (total new: 5743)
+  [Peterbilt 567 p14/72] 28 cards, 18 new saved (total new: 5761)
+  [Peterbilt 567 p15/72] 28 cards, 24 new saved (total new: 5785)
+  [Peterbilt 567 p16/72] 28 cards, 27 new saved (total new: 5812)
+  [Peterbilt 567 p17/72] 28 cards, 25 new saved (total new: 5837)
+  [Peterbilt 567 p18/72] 28 cards, 28 new saved (total new: 5865)
+  [Peterbilt 567 p19/72] 28 cards, 28 new saved (total new: 5893)
+  [Peterbilt 567 p20/72] 28 cards, 28 new saved (total new: 5921)
+  [Peterbilt 567 p21/72] 28 cards, 28 new saved (total new: 5949)
+  [Peterbilt 567 p22/72] 28 cards, 27 new saved (total new: 5976)
+  [Peterbilt 567 p23/72] 28 cards, 0 new saved (total new: 5976)
+  [Peterbilt 567 p24/72] 28 cards, 0 new saved (total new: 5976)
+  [Peterbilt 567 p25/72] 28 cards, 0 new saved (total new: 5976)
+  [Peterbilt 567 p26/72] 28 cards, 0 new saved (total new: 5976)
+  [Peterbilt 567 p27/72] 28 cards, 0 new saved (total new: 5976)
+  [Peterbilt 567 p28/72] 28 cards, 0 new saved (total new: 5976)
+  [Peterbilt 567 p29/72] 28 cards, 0 new saved (total new: 5976)
+  [Peterbilt 567 p30/72] 28 cards, 0 new saved (total new: 5976)
+  [Peterbilt 567 p31/72] 28 cards, 0 new saved (total new: 5976)
+  [Peterbilt 567 p32/72] 28 cards, 0 new saved (total new: 5976)
+  [Peterbilt 567 p33/72] 28 cards, 0 new saved (total new: 5976)
+  [Peterbilt 567 p34/72] 28 cards, 26 new saved (total new: 6002)
+  [Peterbilt 567 p35/72] 28 cards, 27 new saved (total new: 6029)
+  [Peterbilt 567 p36/72] 28 cards, 28 new saved (total new: 6057)
+  [Peterbilt 567 p37/72] 28 cards, 3 new saved (total new: 6060)
+  [Peterbilt 567 p38/72] 28 cards, 0 new saved (total new: 6060)
+  [Peterbilt 567 p39/72] 28 cards, 17 new saved (total new: 6077)
+  [Peterbilt 567 p40/72] 28 cards, 28 new saved (total new: 6105)
+  [Peterbilt 567 p41/72] 28 cards, 28 new saved (total new: 6133)
+  [Peterbilt 567 p42/72] 28 cards, 4 new saved (total new: 6137)
+  [Peterbilt 567 p43/72] 28 cards, 0 new saved (total new: 6137)
+  [Peterbilt 567 p44/72] 28 cards, 22 new saved (total new: 6159)
+  [Peterbilt 567 p45/72] 28 cards, 10 new saved (total new: 6169)
+  [Peterbilt 567 p46/72] 28 cards, 25 new saved (total new: 6194)
+  [Peterbilt 567 p47/72] 28 cards, 20 new saved (total new: 6214)
+  [Peterbilt 567 p48/72] 28 cards, 24 new saved (total new: 6238)
+  [Peterbilt 567 p49/72] 28 cards, 20 new saved (total new: 6258)
+  [Peterbilt 567 p50/72] 28 cards, 27 new saved (total new: 6285)
+  [Peterbilt 567 p51/72] 28 cards, 28 new saved (total new: 6313)
+  [Peterbilt 567 p52/72] 28 cards, 19 new saved (total new: 6332)
+  [Peterbilt 567 p53/72] 28 cards, 28 new saved (total new: 6360)
+  [Peterbilt 567 p54/72] 28 cards, 28 new saved (total new: 6388)
+  [Peterbilt 567 p55/72] 28 cards, 25 new saved (total new: 6413)
+  [Peterbilt 567 p56/72] 28 cards, 18 new saved (total new: 6431)
+  [Peterbilt 567 p57/72] 28 cards, 9 new saved (total new: 6440)
+  [Peterbilt 567 p58/72] 28 cards, 22 new saved (total new: 6462)
+  [Peterbilt 567 p59/72] 28 cards, 19 new saved (total new: 6481)
+  [Peterbilt 567 p60/72] 28 cards, 3 new saved (total new: 6484)
+  [Peterbilt 567 p61/72] 28 cards, 0 new saved (total new: 6484)
+  [Peterbilt 567 p62/72] 28 cards, 0 new saved (total new: 6484)
+  [Peterbilt 567 p63/72] 28 cards, 0 new saved (total new: 6484)
+  [Peterbilt 567 p64/72] 28 cards, 4 new saved (total new: 6488)
+  [Peterbilt 567 p65/72] 28 cards, 9 new saved (total new: 6497)
+  [Peterbilt 567 p66/72] 28 cards, 17 new saved (total new: 6514)
+  [Peterbilt 567 p67/72] 28 cards, 6 new saved (total new: 6520)
+  [Peterbilt 567 p68/72] 28 cards, 3 new saved (total new: 6523)
+  [Peterbilt 567 p69/72] 28 cards, 4 new saved (total new: 6527)
+  [Peterbilt 567 p70/72] 28 cards, 0 new saved (total new: 6527)
+  [Peterbilt 567 p71/72] 28 cards, 1 new saved (total new: 6528)
+  [Peterbilt 567 p72/72] 28 cards, 7 new saved (total new: 6535)
+  [Western Star 4900] 507 listings → 19 pages
+  [Western Star 4900 p1/19] 28 cards, 11 new saved (total new: 6546)
+  [Western Star 4900 p2/19] 28 cards, 11 new saved (total new: 6557)
+  [Western Star 4900 p3/19] 28 cards, 13 new saved (total new: 6570)
+  [Western Star 4900 p4/19] 28 cards, 16 new saved (total new: 6586)
+  [Western Star 4900 p5/19] 28 cards, 21 new saved (total new: 6607)
+  [Western Star 4900 p6/19] 28 cards, 20 new saved (total new: 6627)
+  [Western Star 4900 p7/19] 28 cards, 22 new saved (total new: 6649)
+  [Western Star 4900 p8/19] 28 cards, 22 new saved (total new: 6671)
+  [Western Star 4900 p9/19] 28 cards, 18 new saved (total new: 6689)
+  [Western Star 4900 p10/19] 28 cards, 13 new saved (total new: 6702)
+  [Western Star 4900 p11/19] 28 cards, 18 new saved (total new: 6720)
+  [Western Star 4900 p12/19] 28 cards, 18 new saved (total new: 6738)
+  [Western Star 4900 p13/19] 28 cards, 22 new saved (total new: 6760)
+  [Western Star 4900 p14/19] 28 cards, 20 new saved (total new: 6780)
+  [Western Star 4900 p15/19] 28 cards, 17 new saved (total new: 6797)
+  [Western Star 4900 p16/19] 28 cards, 21 new saved (total new: 6818)
+  [Western Star 4900 p17/19] 28 cards, 16 new saved (total new: 6834)
+  [Western Star 4900 p18/19] 28 cards, 0 new saved (total new: 6834)
+  [Western Star 4900 p19/19] 5 cards, 5 new saved (total new: 6839)
+  [Mack Pinnacle] 788 listings → 29 pages
+  [Mack Pinnacle p1/29] 28 cards, 20 new saved (total new: 6859)
+  [Mack Pinnacle p2/29] 28 cards, 24 new saved (total new: 6883)
+  [Mack Pinnacle p3/29] 28 cards, 21 new saved (total new: 6904)
+  [Mack Pinnacle p4/29] 28 cards, 21 new saved (total new: 6925)
+  [Mack Pinnacle p5/29] 28 cards, 18 new saved (total new: 6943)
+  [Mack Pinnacle p6/29] 28 cards, 23 new saved (total new: 6966)
+  [Mack Pinnacle p7/29] 28 cards, 23 new saved (total new: 6989)
+  [Mack Pinnacle p8/29] 28 cards, 22 new saved (total new: 7011)
+  [Mack Pinnacle p9/29] 28 cards, 4 new saved (total new: 7015)
+  [Mack Pinnacle p10/29] 28 cards, 5 new saved (total new: 7020)
+  [Mack Pinnacle p11/29] 28 cards, 20 new saved (total new: 7040)
+  [Mack Pinnacle p12/29] 28 cards, 24 new saved (total new: 7064)
+  [Mack Pinnacle p13/29] 28 cards, 17 new saved (total new: 7081)
+  [Mack Pinnacle p14/29] 28 cards, 13 new saved (total new: 7094)
+  [Mack Pinnacle p15/29] 28 cards, 21 new saved (total new: 7115)
+  [Mack Pinnacle p16/29] 28 cards, 24 new saved (total new: 7139)
+  [Mack Pinnacle p17/29] 28 cards, 28 new saved (total new: 7167)
+  [Mack Pinnacle p18/29] 28 cards, 27 new saved (total new: 7194)
+  [Mack Pinnacle p19/29] 28 cards, 27 new saved (total new: 7221)
+  [Mack Pinnacle p20/29] 28 cards, 22 new saved (total new: 7243)
+  [Mack Pinnacle p21/29] 28 cards, 20 new saved (total new: 7263)
+  [Mack Pinnacle p22/29] 28 cards, 23 new saved (total new: 7286)
+  [Mack Pinnacle p23/29] 28 cards, 23 new saved (total new: 7309)
+  [Mack Pinnacle p24/29] 28 cards, 26 new saved (total new: 7335)
+  [Mack Pinnacle p25/29] 28 cards, 25 new saved (total new: 7360)
+  [Mack Pinnacle p26/29] 28 cards, 20 new saved (total new: 7380)
+  [Mack Pinnacle p27/29] 28 cards, 13 new saved (total new: 7393)
+  [Mack Pinnacle p28/29] 28 cards, 1 new saved (total new: 7394)
+  [Mack Pinnacle p29/29] 6 cards, 0 new saved (total new: 7394)
+Done. 7394 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 9637 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 9637 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 22948 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 24920 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 27710 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 27710 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 46484 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 46484 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 46484 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 46960 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 46960 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 54757 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 55608 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 55917 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 55917 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 55917 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 55917 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 55917 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 55917 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 56597 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl
+Resuming — 56597 listings already saved.
+  [Volvo VNL] already finished in a previous run — skipping
+  [Volvo VNR] already finished in a previous run — skipping
+  [International LT] already finished in a previous run — skipping
+  [International LoneStar] already finished in a previous run — skipping
+  [Kenworth T880] already finished in a previous run — skipping
+  [Peterbilt 567] already finished in a previous run — skipping
+  [Western Star 4900] already finished in a previous run — skipping
+  [Mack Pinnacle] already finished in a previous run — skipping
+Done. 0 new listings saved to /Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/data/truckpaper_raw.jsonl

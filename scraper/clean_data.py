@@ -71,11 +71,25 @@ def clean():
 
     seen_ids = set()
     cleaned = []
-    dropped = {"missing_price": 0, "missing_image": 0, "bad_year": 0, "duplicate": 0, "relist": 0}
+    dropped = {"missing_price": 0, "missing_image": 0, "bad_year": 0, "duplicate": 0, "relist": 0, "malformed": 0}
 
     with RAW_PATH.open() as f:
         for line in f:
-            r = json.loads(line)
+            line = line.strip()
+            if not line:
+                continue
+            # Two machines' overnight auto-pushes can land a commit that
+            # snapshots this file mid-write; a torn last line reads as
+            # invalid JSON. Skip it rather than crashing the whole merge --
+            # the listing gets re-scraped and re-appended cleanly next time.
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                dropped["malformed"] += 1
+                continue
+            if "listing_id" not in r:
+                dropped["malformed"] += 1
+                continue
 
             if r["listing_id"] in seen_ids:
                 dropped["duplicate"] += 1

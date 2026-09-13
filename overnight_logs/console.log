@@ -1,0 +1,25 @@
+/Users/jonathantran/Documents/ChatGPT/54 Hacks/fleetworth/scripts/overnight_pipeline.py:65: SyntaxWarning: "\c" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\c"? A raw string is also an option.
+  -RedirectStandardOutput "overnight_logs\console.log" `
+[01:35:36] starting on wirelessprv-10-192-52-166.near.illinois.edu (Darwin): shard 1/3, coordinator=False, keywords=['Volvo VNL', 'Volvo VNR', 'International LT', 'International LoneStar', 'Kenworth T880', 'Peterbilt 567', 'Western Star 4900', 'Mack Pinnacle']
+[01:35:36] Phase 1: scraping for 8.0h with keywords ['Volvo VNL', 'Volvo VNR', 'International LT', 'International LoneStar', 'Kenworth T880', 'Peterbilt 567', 'Western Star 4900', 'Mack Pinnacle']
+[01:55:36] scraper exited (code 0) with 7.7h left in the window -- restarting (attempt 1/30)
+[02:16:41] scraper exited (code 0) with 7.3h left in the window -- restarting (attempt 2/30)
+[02:36:52] scraper exited (code 0) with 7.0h left in the window -- restarting (attempt 3/30)
+[02:57:04] scraper exited (code 0) with 6.6h left in the window -- restarting (attempt 4/30)
+[03:17:15] scraper exited (code 0) with 6.3h left in the window -- restarting (attempt 5/30)
+[03:37:26] scraper exited (code 0) with 6.0h left in the window -- restarting (attempt 6/30)
+[03:57:37] scraper exited (code 0) with 5.6h left in the window -- restarting (attempt 7/30)
+[04:17:48] scraper exited (code 0) with 5.3h left in the window -- restarting (attempt 8/30)
+[04:37:59] scraper exited (code 0) with 5.0h left in the window -- restarting (attempt 9/30)
+[04:58:11] scraper exited (code 0) with 4.6h left in the window -- restarting (attempt 10/30)
+[05:18:23] scraper exited (code 0) with 4.3h left in the window -- restarting (attempt 11/30)
+[05:38:34] scraper exited (code 0) with 4.0h left in the window -- restarting (attempt 12/30)
+[05:58:46] scraper exited (code 0) with 3.6h left in the window -- restarting (attempt 13/30)
+[06:18:58] scraper exited (code 0) with 3.3h left in the window -- restarting (attempt 14/30)
+[06:39:09] scraper exited (code 0) with 2.9h left in the window -- restarting (attempt 15/30)
+[06:59:21] scraper exited (code 0) with 2.6h left in the window -- restarting (attempt 16/30)
+[07:19:39] scraper exited (code 0) with 2.3h left in the window -- restarting (attempt 17/30)
+[07:39:52] scraper exited (code 0) with 1.9h left in the window -- restarting (attempt 18/30)
+[08:00:04] scraper exited (code 0) with 1.6h left in the window -- restarting (attempt 19/30)
+[08:20:15] scraper exited (code 0) with 1.3h left in the window -- restarting (attempt 20/30)
+[08:40:26] scraper exited (code 0) with 0.9h left in the window -- restarting (attempt 21/30)

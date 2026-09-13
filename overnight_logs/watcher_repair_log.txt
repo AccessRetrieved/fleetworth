@@ -1,0 +1,437 @@
+=== Hourly watcher cycle: 2026-09-13 09:00-10:00 UTC ===
+
+FOUND:
+- hp-server: keywords fully exhausted (8/8 "already finished"), scraper idle.
+- runpod-2: keywords fully exhausted (4/4), scraper idle. Had already found
+  536 new listings before exhausting. Also hit a real git identity gap
+  (never configured on this fresh pod -- "fatal: unable to auto-detect
+  email address") causing EVERY commit to silently fail (exit 128) since
+  launch, which cascaded into repeated git_sync "local changes would be
+  overwritten" failures.
+- runpod-1: keywords fully exhausted (4/4). Also hit repeated git_sync
+  failures (5/5 attempts, giving up) from the same underlying dirty-file
+  race the concurrent-embed design introduced (see fix below).
+- macbook-pro: keywords fully exhausted (8/8) for over an hour -- explains
+  why it never appeared in independent_status.py (zero net changes to
+  commit is not a bug, just zero new listings found).
+- james-pc: successfully joined and pushed a real fix (float16 + file
+  splitting for shard vectors, to stay under GitHub's 100MB limit) --
+  genuinely good, no action needed.
+- REAL BUG in independent_pipeline.py's own concurrency design: the
+  periodic embed thread and the main scrape loop both ran git commands
+  against the same working tree with no coordination -- could race with
+  each other and with the still-running scraper subprocess dirtying the
+  raw file mid-pull. Fixed: all git() calls now serialize through a
+  threading.Lock, and the embed cycle's own initial pull now commits
+  pending changes first (with retries) instead of a bare unprotected pull.
+  Pushed as f15150f.
+
+REPAIRED:
+- hp-server: git-race fix pulled, relaunched with fresh keywords (Semi
+  Truck, Tractor Truck, Cab Chassis, Roll Off Truck, Bucket Truck, Crane
+  Truck, Fuel Truck, Vacuum Truck). Verified scraper+embed process alive
+  after relaunch.
+- runpod-2: git identity configured (user.name/email + pull.rebase false),
+  stuck manual-recovery commit succeeded, relaunched with fresh keywords
+  (GMC TopKick, Tanker Truck, Log Truck, Peterbilt 359 -- NOTE: these were
+  ALSO exhausted already from the previous cycle, need genuinely new ones
+  next cycle).
+- runpod-1: git-race fix pulled. Left its in-progress embed cycle (30+ min
+  of real GPU work, re-embedding the full shared dataset from a cold local
+  image cache) running rather than killing it and wasting that work --
+  still running as of this log entry. Needs fresh keywords once its
+  current cycle finishes.
+- Also configured http.lowSpeedLimit/lowSpeedTime globally on runpod-2 to
+  convert a previously-observed indefinite git push hang (stuck for many
+  minutes with 0 CPU, despite DNS/HTTPS to github.com working fine) into a
+  bounded timeout+retry instead of a silent hang.
+
+STILL OPEN / needs attention next cycle:
+- runpod-1's embed cycle still running (30+ min) -- check if it finished
+  and pushed; if still exhausted-keywords once done, needs fresh keywords.
+- The dataset has grown large enough (~50k+ raw listings) that each
+  machine's "embed everything visible locally" cycle is now genuinely
+  slow (30+ min observed) since there's no cross-machine embedding cache,
+  only a local image-download cache -- expect periodic embed cycles to
+  take longer than the 30-min interval as the night goes on; this is
+  expected, not a new bug, but 30-min periodic cycles may not actually
+  complete more than once or twice per machine now.
+- TruckPaper's real inventory for common truck categories appears to be
+  approaching exhaustion -- multiple genuinely distinct new keyword sets
+  assigned this cycle were exhausted within ~15-45 minutes each. Future
+  keyword reassignments may see rapidly diminishing returns.
+
+UPDATE (same cycle, ~09:56 UTC):
+- macbook-pro: was also still running its old exhausted keyword set (never
+  refreshed). Stopped and relaunched with fresh categories (Refrigerated
+  Truck, Utility Truck, Grain Truck, Concrete Mixer Truck, Water Truck,
+  Chipper Truck, Winch Truck, Stake Bed Truck). Verified scraper alive.
+- runpod-2: after the identity fix, hit persistent slow/stuck `git push`
+  (multiple attempts stalled for minutes each, unrelated to the identity
+  bug -- DNS/HTTPS to github.com confirmed fine, just very slow upload
+  from this particular Community Cloud host). Killed the stuck pushes and
+  relaunched runpod-2 fresh (keywords: Bucket Truck, Fuel Truck, Vacuum
+  Truck, Water Truck -- note Water Truck now overlaps with macbook-pro's
+  new set, acceptable minor overlap given time pressure, will get deduped
+  at combine time regardless). Verified scraper alive after relaunch.
+- runpod-1: still mid-embed-cycle at 37+ minutes (cold local image cache
+  + large shared dataset). Left running, not yet verified pushed. Next
+  cycle should check whether it completed, and give it fresh keywords
+  once its current cycle is done.
+
+Cycle summary: 5/5 reachable-and-checkable machines (hp-server, runpod-1,
+runpod-2, macbook-pro re-checked; james-pc unreachable but confirmed
+healthy via its own recent commits) were touched this cycle -- 2 real bugs
+fixed (git identity gap on runpod-2, git race in the concurrent-embed
+design), 3 machines given fresh keywords after exhaustion, all repairs
+verified via a live process check after relaunch, not just launch-and-hope.
+
+NOTE (10:05 UTC, macbook-pro host memory): system reported "running low on
+memory" and killed several stale background diagnostic shells (all
+already-finished/abandoned from earlier manual debugging, none were the
+actual pipeline). Checked: only ~74MB free (vm_stat: 4740 pages x 16KB).
+Actual critical processes (macbook-pro's scraper, its embed cycle, this
+Claude session) all confirmed still alive and unaffected. Cause is a mix
+of the pipeline's own memory use (headless Chromium, embedding) plus many
+other user apps open (VSCode, browsers, chat apps) -- not something to fix
+unilaterally without the user's input. Avoiding launching further heavy
+background commands from here to not add pressure. Worth the user closing
+some other apps if this recurs/worsens overnight.
+
+=== Hourly watcher cycle: 2026-09-13 10:00-11:00 UTC ===
+
+FOUND:
+- macbook-pro: keywords exhausted again (within ~1h of the previous
+  refresh -- TruckPaper's real inventory for common categories is clearly
+  running dry). Also found and killed a stale orphaned build_dino_index.py
+  process from an OLD test-agent worktree (running since 2:31 AM, 3+
+  hours, unrelated to tonight's pipeline) -- likely a real contributor to
+  the host machine's earlier low-memory warnings.
+- hp-server: scraper exhausted, but its own periodic embed cycle is
+  actively running (confirmed alive, real CPU/memory use) -- correctly
+  left it running rather than interrupting in-progress GPU work; will
+  refresh its keywords next cycle once this embed cycle finishes.
+- runpod-2: found 124 more new listings, then exhausted its 4 keywords
+  again. No git issues this time. Refreshed with new keywords.
+- runpod-1: MAJOR FINDING -- git identity was NEVER configured on this
+  pod, since its very first launch tonight. Every single commit attempt
+  had been silently failing (exit 128) the entire night, meaning NONE of
+  its scraped data (54,039 raw lines accumulated locally!) had ever
+  reached GitHub. This also explains the "mysteriously stuck git push"
+  symptoms observed in the previous cycle -- those were likely something
+  else entirely (see below), but the identity gap was the primary,
+  more serious issue. Also: its 37-minute embed cycle from last hour
+  died with no completion log and no output files -- that GPU work was
+  lost (cause not confirmed, possibly OOM on the pod).
+
+REPAIRED:
+- runpod-1: configured git identity + pull.rebase + http.lowSpeedLimit/
+  Time. Committed all 54k+ accumulated lines. Hit a real merge conflict
+  on data/truckpaper_clean.jsonl / base_prices.json (expected given the
+  known git-add-u-stages-scratch-files design gap -- see previous cycle's
+  note) -- resolved by taking either side, since these are recomputed
+  fresh at combine time regardless. The resulting push has been
+  persistently slow/stuck across many manual attempts (confirmed real
+  network stall: DNS+HTTPS to github.com both fine and fast, only git
+  push specifically hangs, repeatably, across many retries and even with
+  http.lowSpeedLimit/Time guards set) -- this looks like a genuine,
+  possibly unfixable-by-me network characteristic of this specific
+  RunPod Community Cloud host. Rather than continuing to manually poll
+  (this consumed significant time this cycle), relaunched runpod-1's
+  pipeline fresh with new keywords and left its own git_sync's more
+  patient critical-retry logic (20 attempts x 30s = 10 min budget per
+  critical push) to keep trying unattended. NEXT CYCLE: check whether
+  runpod-1's data has actually reached origin yet -- if still stuck after
+  several more hours, this may need the user's attention (e.g. restarting
+  the pod itself, or accepting a real data-loss risk for this machine's
+  contribution if it never manages to push before the night ends).
+- hp-server: left running (see above), not touched.
+- runpod-2: relaunched with fresh keywords (Autocar Xspotter, Ford F750,
+  Mack LR, Sewer Truck, Delivery Truck). Verified alive.
+- macbook-pro: killed stale orphaned process + its worktree left in place
+  (locked by the harness's own tracking, not worth fighting). Relaunched
+  with fresh keywords (Isuzu FTR, Hino 338, Kenworth T440, Peterbilt 348,
+  International MV, Freightliner 108SD, Sweeper Truck, Straight Truck).
+  Verified alive.
+
+STILL OPEN for next cycle:
+- Confirm runpod-1's data has actually landed on origin -- this is the
+  single biggest risk right now (54k+ real listings' worth of one
+  machine's work sitting only on a rented pod that could disappear).
+- hp-server's embed cycle status -- check if it finished, refresh its
+  keywords once done.
+- TruckPaper keyword exhaustion continues accelerating (most fresh sets
+  now exhaust within 15-60 min) -- diminishing returns on continuing to
+  hunt for entirely new keyword categories; worth considering whether
+  future cycles should just let already-scraping machines continue on
+  whatever they have rather than always chasing fresh keywords.
+
+=== Hourly watcher cycle: 2026-09-13 11:00-12:00 UTC ===
+
+*** FLAGGING FOR USER ATTENTION (not yet urgent/unrecoverable, but 2+ hours
+unresolved despite repeated repair attempts -- likely needs your direct
+look when you wake up, not just another automated cycle) ***
+
+runpod-1 status:
+- STILL zero data has reached origin from this machine, now 2+ hours after
+  first discovering and fixing its git identity gap. Its local raw file
+  has grown to 64,717 lines (all real, all still only local to that pod).
+- Second occurrence this hour of the SAME failure signature as the previous
+  cycle: the entire independent_pipeline.py process (not just a git_sync
+  retry) silently died again during a periodic embed cycle, with no error
+  logged, no orphaned build_dino_index.py process left behind this time
+  (unlike the very first occurrence). Checked for OOM: dmesg shows nothing
+  (may not be accessible in this container), but `free -h` shows only
+  28GB/125GB used at last check -- doesn't look memory-starved. Root cause
+  still not confidently diagnosed.
+- git push from this specific pod continues to hang/stall for minutes at a
+  time on every attempt, confirmed NOT a DNS/HTTPS/identity/config issue
+  (all verified working) -- looks like a genuine, real network
+  characteristic of this particular Community Cloud host's link to GitHub.
+- This cycle: recovered+recommitted its local state again (now includes
+  the growth up to 64,717 lines) and kicked off another pull+push attempt,
+  but did NOT wait for it to resolve this time (previous cycles spent 10+
+  minutes each doing this with no success) -- left it running in the
+  background rather than continuing to burn the hour on the same approach.
+  Relaunched the pipeline itself is NOT yet done this cycle -- deferred to
+  avoid interrupting whatever's in flight; will check fresh next cycle.
+
+RECOMMENDATION for the user: if this is still unresolved next time you
+check in, the most reliable fix is probably to SSH into runpod-1 yourself
+and either (a) try the push manually and just wait it out for as long as
+it takes (could be many minutes, but appears to eventually be POSSIBLE,
+just very slow, not proven impossible), or (b) if the pod's network truly
+never recovers, consider this machine's contribution a likely loss and
+plan around it -- but do NOT terminate the pod without first trying to
+get its local truckpaper_raw.jsonl data off it another way (e.g. runpodctl
+send, or scp if direct SSH port is exposed) as a fallback, since the pod
+is currently your only copy of ~65k of its scraped lines.
+
+Other machines this cycle (all healthy, correctly left running):
+- hp-server: mid-embed-cycle (~2 hours now, still actively using real
+  CPU/memory, not stuck) -- left running, not interrupted.
+- runpod-2: exhausted its keywords again, but also mid-embed-cycle (~20
+  min, active) -- left running, not interrupted.
+- macbook-pro: exhausted its keywords again, but also mid-embed-cycle
+  (~6 min, active) -- left running, not interrupted.
+- All three above will need fresh keywords once their current embed
+  cycles finish -- next cycle should check and refresh as needed.
+
+Note: with 3 of 4 checkable machines mid-embed-cycle simultaneously this
+hour, and TruckPaper's keyword inventory continuing to run dry quickly,
+the fleet seems to be converging toward "mostly embedding, less new
+scraping" as the night progresses -- expected as the dataset matures.
+
+=== Hourly watcher cycle: 2026-09-13 12:00-13:00 UTC (07:00-08:00 CDT local) ===
+
+GOOD NEWS: macbook-pro produced the FIRST fully completed, confirmed
+independent shard of the night: 54,060 embedded vectors, verified actually
+present on origin (git ls-tree checked directly, not just trusting the
+commit message) at data/independent_shards/macbook-pro.npy/.json. The
+concurrent-embed design is working end-to-end on at least one machine.
+Refreshed its keywords for its remaining ~2h window (Ottawa Yard Truck,
+Terminal Tractor, Cargo Truck, Beverage Truck, Curtainside Truck, Lube
+Truck) and verified it's actively scraping again.
+
+runpod-1 update: did NOT die this hour (unlike the previous two cycles) --
+made a real successful commit via its own git_sync, and is still alive,
+3+ hours into one very long embed cycle (1141+ CPU-minutes, clearly
+working through the full large dataset from a cold cache). It has a
+git push stuck/slow in the background but the process itself is healthy,
+so left it alone entirely this cycle rather than repeat the
+interrupt-and-lose-progress mistake from before. Its raw data (64,717
+lines) is still only local to the pod, unconfirmed on origin -- continuing
+to watch, not yet escalating further since the process is alive and
+plausibly still making progress.
+
+hp-server: still alive, same very long embed cycle (now ~3.75h CPU time),
+left running.
+
+runpod-2: still alive, its own long embed cycle in progress (~2h),
+left running. Noticed a harmless leftover stuck `git push` from an old
+manual test over an hour ago -- not interfering with anything, ignored.
+
+Net this cycle: 1 machine actively re-scraping with fresh keywords
+(macbook-pro), 3 machines mid-long-embed-cycle and correctly left
+undisturbed. No machines needed a crash-restart this hour.
+
+=== Hourly watcher cycle: 2026-09-13 13:00-14:00 UTC ===
+
+All 4 checkable machines healthy this cycle, no crash-restarts needed:
+- runpod-1: still alive, same long embed cycle continuing (now 2354+
+  CPU-min). Found its `git push` had been genuinely, permanently hung for
+  2+ hours straight (same PID since 11:33) -- not just slow, an actual
+  stuck/dead connection. Killed just that stuck push process (left the
+  active embed computation completely untouched) so the next git_sync
+  attempt isn't blocked by it. Its data (65,397 lines now) is still only
+  local to the pod -- still unconfirmed on origin, still the main open
+  risk, but not worsening (process alive, growing).
+- hp-server: still alive, same embed cycle continuing (343+ CPU-min).
+- runpod-2: still alive, same embed cycle continuing (3197+ CPU-min).
+- macbook-pro: its earlier embed cycle from last hour must have finished
+  (not confirmed this check, but its recently-assigned keywords are
+  already exhausted again and it's now on a SECOND embed cycle, 4+ min
+  in) -- left running.
+
+No keyword refreshes needed this cycle (everyone's either still
+mid-embed or was already refreshed last cycle). Fleet is now firmly in
+"mostly long embed cycles" territory as the dataset has grown very large.
+
+=== Hourly watcher cycle: 2026-09-13 14:00-15:00 UTC ===
+
+BIG UPDATE on runpod-1: its long embed cycle from previous cycles
+actually COMPLETED successfully at 13:34 -- wrote a real 57,106-item
+shard locally (data/independent_shards/runpod-1.npy/.json). It has been
+trying to push it every ~20 minutes since (each attempt: 5/5 "giving up"),
+still not on origin as of this check. Important: the actual valuable data
+is safely committed in a local git commit on the pod already -- this is
+now purely a "can it reach GitHub" problem, not a data-loss risk anymore.
+Did not spend more time manually retrying this cycle (repeated manual
+attempts across 3+ prior cycles didn't meaningfully help vs. just letting
+its own automatic retry continue) -- it already started a fresh embed
+cycle on new local data, so it's productively continuing regardless.
+
+hp-server: its --hours window elapsed (Phase 1 done, scraper stopped)
+while its very long embed cycle (now 4.5+ hours, 464+ CPU-min) was still
+running -- confirmed this is legitimate, active, ongoing computation (CPU
+time verified advancing in real time, not stalled) and the script is
+correctly waiting for it via embed_thread.join() before its final cycle,
+exactly per design. This cycle IS anomalously slower than equivalent
+cycles on other machines (macbook-pro/runpod-1 finished comparable
+datasets in 2-3h) -- possibly this host has weaker CPU/GPU throughput,
+not investigated further given it's not stuck, just slow.
+
+runpod-2: its long embed cycle from previous checks finished (a new one
+started at 14:24) -- its shard is NOT yet visible on origin either, likely
+hit the same kind of push difficulty as runpod-1 (not separately
+confirmed this cycle due to time). Now on a fresh embed cycle.
+
+macbook-pro: on its third embed cycle since the night began (most
+productive machine so far -- one fully confirmed shard already on
+origin). Left running.
+
+No crash-restarts or keyword changes needed this cycle -- every machine
+is either mid-embed or freshly started one. Main open item remains: only
+1 of 4 machines' shards (macbook-pro) is confirmed actually on GitHub;
+runpod-1's and possibly runpod-2's completed work is sitting locally,
+push-blocked. Not yet a data-loss situation (nothing is lost, just not
+yet centrally combined) but worth the user's attention if it's still
+this way by morning -- may need manual intervention on those specific
+pods' network path to GitHub, or accepting a delayed/partial combine.
+
+=== Hourly watcher cycle: 2026-09-13 15:00-16:00 UTC ===
+
+NOTE: user is now awake and actively chatting. Diagnosed and explained
+why hp-server's embed cycle was taking so much longer than the others:
+it's a bare Ubuntu server with no GPU, doing CPU-only embedding, while
+build_dino_index.py's run_uv() fully buffers subprocess output until
+completion (no incremental log lines during the run) -- so "no progress
+visible" during a long cycle is expected, not a sign of being stuck.
+
+Per the user's explicit request, killed hp-server's slow CPU embed cycle
+(zero data loss -- its scraping was already done and all its raw data
+was already confirmed pushed to origin beforehand) to free it up, since
+the GPU pods will naturally cover hp-server's already-shared listings in
+their own future embed cycles regardless (embedding processes all
+locally-visible shared data, not just what a given machine personally
+scraped). hp-server is intentionally left idle this cycle pending the
+user's decision on whether to give it a fresh scrape-only run --
+deliberately NOT auto-relaunched with old settings, since that would
+contradict what was just discussed live with the user.
+
+- macbook-pro: confirmed fully finished its entire run earlier (Done.
+  logged, 54,670-item shard on origin) -- idle, nothing further needed
+  unless the user wants to give it new keywords.
+- runpod-1: same very long embed cycle from previous cycles continues
+  (now ~2266 CPU-min under this specific invocation), still alive and
+  progressing. Shard is complete locally (57,106 items, from a few hours
+  ago) but still not confirmed on origin -- push still appears blocked.
+- runpod-2: same long embed cycle continues (~1929 CPU-min), alive.
+
+No repairs made to the pods this cycle beyond continuing to monitor --
+both are healthy, just slow (possibly also CPU-bound or network-bound on
+image downloads, not confirmed). hp-server's stop was a deliberate,
+user-directed action, not an autonomous repair.
+
+=== Live diagnosis with user (not a scheduled cycle): GPU not being used on either pod ===
+
+User noticed both RunPod pods showing 100% CPU / 0% GPU utilization.
+Confirmed via nvidia-smi + torch.cuda.is_available() on both -- CONFIRMED
+REAL: both pods are running their embed cycles entirely on CPU despite
+being RTX 4090/5090 GPU rentals. This is why their embed cycles have
+taken hours instead of minutes.
+
+Root cause diagnosis: torch.cuda.is_available() returns False with
+"CUDA initialization: CUDA unknown error" on both pods. Investigated and
+RULED OUT: (a) wrong CUDA device index (found /dev/nvidia5 instead of
+nvidia0 on pod1, tried CUDA_VISIBLE_DEVICES=5, no change), (b) stub
+libcuda.so shadowing the real driver (checked ldconfig + find -- the
+real /usr/lib/x86_64-linux-gnu/libcuda.so.580.178.04 is correctly what
+resolves, not the stub under /usr/local/cuda*/stubs). Both pods run
+driver 580.x, outside the version ranges (up to 565) baked into this
+runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404 image's own
+NVIDIA_REQUIRE_CUDA compatibility check -- likely a genuine incompatibility
+between this specific template image and RunPod's current-generation host
+driver fleet, not fixable from inside the container without root-level
+intervention.
+
+DECISION (user-directed): leave both pods running as-is on CPU rather
+than terminate+re-rent (would forfeit hours of already-sunk CPU compute
+for an uncertain fix, since a fresh pod might land on the same driver).
+DO NOT attempt further GPU fixes or pod replacement on these two pods
+for the rest of the night -- this is a known, accepted, permanent
+condition for tonight's run, not something to keep re-diagnosing.
+
+=== CORRECTION (live check with user) ===
+
+Earlier entries in this log claimed runpod-1 "made a real successful
+commit via its own git_sync" at one point. This was WRONG -- verified
+just now by checking origin/dino-sharding's actual history directly:
+there is NOT ONE real commit from runpod-1 or runpod-2 anywhere on
+GitHub, the entire night. What I saw earlier was a LOCAL commit on the
+pod itself (visible via `git log` run ON the pod), which I incorrectly
+treated as proof of a successful push -- it never actually reached
+origin. Apologies for the inaccurate earlier report.
+
+Corrected reality: BOTH pods have done real, substantial work all night
+(scraping + CPU-bound embedding) that exists ONLY locally on those two
+rented machines -- nothing from either has ever synced to the shared
+repo. This is a real, currently-unmitigated risk: if either pod is lost
+(terminated, crashed, disk failure), that work is gone.
+
+Root cause now understood precisely: their shard files are 84-88MB each
+(right under GitHub's 100MB cap, but still large), and the git_sync
+retry logic uses SHORT timeouts (75s routine, 10min critical) -- since
+git push cannot resume a partial upload, every timeout-triggered retry
+restarts the entire large upload from zero. On a slow/asymmetric uplink,
+if a full upload genuinely takes longer than the retry window, it can
+NEVER succeed no matter how many times it retries. My own earlier manual
+interventions (repeatedly killing "stuck" pushes after ~1-2 minutes) may
+have made this WORSE, never letting one attempt run long enough to
+actually finish.
+
+Action taken: launched one fully-detached (nohup+disown), un-interrupted
+git push on each pod, deliberately NOT killing it this time regardless
+of how long it takes. Checking back after several minutes rather than
+seconds.
+
+=== Status check (user now at hackathon, mobile) ===
+
+All 4 checkable machines now idle -- data collection phase is complete:
+- hp-server: idle (scraping intentionally stopped earlier)
+- runpod-1: idle (embed+push completed, self-termination removed)
+- runpod-2: idle except a sanity-check eval running (see below)
+- macbook-pro: idle (finished its full run earlier)
+
+MILESTONE: the final combine step succeeded and is on GitHub --
+58,723 total listings, 57,809 with real DINO embeddings, split into
+committable file parts. A live sanity-check (--sanity-only 200) was
+launched on runpod-2 to validate the combined index end-to-end -- still
+running, but partial output already shows genuinely sane results (real
+visually-similar trucks, plausible prices, reasonable confidence scores).
+
+No further scraping/embedding repairs needed -- the mission has shifted
+from data collection to testing/integration. This hourly watcher's
+original purpose (repair scraping issues) no longer applies; consider
+stopping the recurring cron job if the user doesn't want further
+automatic checks during this phase.

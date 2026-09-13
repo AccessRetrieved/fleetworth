@@ -102,10 +102,8 @@ Goal: build a dataset of `{image_url(s), make, model, year, trim, price, mileage
 - [x] Store `{listing_id, image_id, embedding, price, make, model, year, detail_url}`; keep the embedding array separate from the raw JSONL if convenient
 - [x] Build a local FAISS cosine-similarity index (`IndexFlatIP` over L2-normalized vectors is sufficient for hackathon scale)
 - [x] Save the index plus a metadata mapping so a nearest-neighbor result can be turned back into the source listing and real price
-- [x] Sanity-check retrieval manually: query 10 comp images and verify that nearest neighbors are at least visually/semantically plausible trucks (leave-one-out eval in `build_dino_index.py --sanity-only`)
+- [x] Sanity-check retrieval manually: query 10 comp images and verify that nearest neighbors are at least visually/semantically plausible trucks
 - [x] Do **not** train DINO on the hackathon dataset; its job is only `image → embedding → nearest real comps`
-
-Implemented in `backend/dino_retrieval.py` / `backend/build_dino_index.py` on the `dino` / `dino-formula-combined` branches, including multi-machine index sharding (`--shard`/`--merge`). Not yet merged to `main`.
 
 ---
 
@@ -149,8 +147,6 @@ There is no image-vs-video choice for the user — capture is always one continu
 - [x] For each query view, record retrieval diagnostics such as `top1_similarity`, `topK_mean_similarity`, and price spread; low similarity or extremely wide neighbor prices should lower confidence
 - [x] Keep this path independent from VLM make/model extraction — a visually useful neighbor remains useful even when the VLM cannot confidently name the truck
 
-Implemented in `backend/dino_retrieval.py` on `dino` / `dino-formula-combined`. Not yet merged to `main`.
-
 ### 2c. Damage visualization (bounding boxes)
 - [x] For each photo with at least one localized damage entry (has a non-null `box`), draw a rectangle on a copy of that photo at the box coordinates (OpenCV `cv2.rectangle`, or any equivalent — implementation is flexible) and label it with the damage description
 - [x] Save each annotated photo locally to a `results/` folder in the project (e.g. `results/<submission_id>/<photo_name>_annotated.jpg`), so the team can visually review flagged damage without digging through raw JSON
@@ -172,8 +168,6 @@ Works across any number of usable views (3-7 typical) — not tied to a fixed co
 - [x] Compute a fused retrieval score, e.g. `sum(view_similarity^alpha)` with a recurrence bonus for appearing in 2+ views; keep the exact formula simple and inspectable
 - [x] Keep the best ~20-50 fused comps as the visual neighborhood for pricing, together with their real prices and similarity scores
 - [x] Record retrieval consistency: if front/side/rear views all point toward the same family of comps, confidence rises; if views retrieve unrelated truck types, confidence falls
-
-Implemented in `backend/fusion.py` (`fuse_retrieval`) on `dino` / `dino-formula-combined`, including a model-family recurrence bonus added by the formula-tuning pass. Not yet merged to `main`.
 
 ---
 
@@ -197,10 +191,9 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
   weight_i = max(similarity_i, 0) ** alpha
   p_visual = weighted_median(comp_price_i, weight_i)
   ```
-  (implemented as an interpolated weighted median, tuned during the formula-improvement pass)
 - [x] Reject/downweight very weak visual matches below a chosen cosine-similarity threshold rather than forcing every query to use bad neighbors
 - [x] Use the spread of retrieved comp prices (weighted IQR / MAD / standard deviation) as a direct uncertainty signal
-- [x] Apply the existing visible-condition adjustment on top of `p_visual`:
+- [ ] Apply the existing visible-condition adjustment on top of `p_visual`:
   ```
   price = p_visual * condition_adjustment(condition_score, tire_score, damage_count)
   ```
@@ -208,8 +201,6 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 - [x] If DINO visual price and make/model/year bucket price agree, raise confidence; if they differ sharply, widen the range and surface the disagreement in the explanation
 - [x] Sanity-check output against known real listings
 - [x] **Output a price range plus a confidence score — this is the headline result, not a single point price.** Range width should respond to both VLM extraction confidence and DINO-neighborhood price spread
-
-Implemented in `backend/pricing.py` / `backend/pricing_formula.py` on `dino` / `dino-formula-combined`. Verified via leave-one-out evaluation: image-only DINO error improved 27.9% → 27.3%, and to ~21.6% when combined with a realistic year estimate. Not yet merged to `main`.
 
 ### 4c. Option B — Learned regression over VLM + DINO features (STRETCH)
 - [ ] Fit a small XGBoost/LightGBM model on scraped comps; no vision model training
@@ -232,8 +223,6 @@ Implemented in `backend/pricing.py` / `backend/pricing_formula.py` on `dino` / `
 - [x] Unknown make/model/year **and** weak DINO neighbors → fall back to a generic "truck" average price, flag very low confidence
 - [x] Very low extraction confidence → widen the price range, surface a warning in the UI
 - [x] Strong disagreement between VLM identity and DINO neighborhood → keep the estimate conservative, lower confidence, and show both signals in the breakdown
-
-Implemented in `backend/pricing_formula.py` (`compute_price`, `signal_agreement`) on `dino` / `dino-formula-combined`. Not yet merged to `main`.
 
 ### 4e. Knowing its limits (required per challenge brief, not just error handling)
 - [x] **Not-a-truck detection**: if the VLM extraction indicates the subject isn't a truck (or confidence is near-zero on make/model), refuse to output a price — return a clear "this doesn't look like a truck" response instead of a number
@@ -328,4 +317,3 @@ Implemented in `backend/pricing_formula.py` (`compute_price`, `signal_agreement`
 - Capture guidance is intentionally loose about exact angles (see Phase 2a) — don't design the pipeline or the demo around an assumption that photos arrive in a fixed order or fixed named set
 - `results/` (Phase 2c annotated damage images) is a generated-artifact folder like `backend/uploads/` — gitignore it, don't commit its contents
 - Damage bounding boxes (Phase 2c) are a demo/explainability aid, not a measurement — implementation is flexible (OpenCV or otherwise), and box accuracy has no bearing on pricing correctness
-- **Stretch idea (not started): location-aware pricing.** Add city/region to scraped comp listings and to the DINO comp-embedding metadata, and bucket/weight comps by proximity to the query truck's own location — this would strip regional market variance (freight demand, cost of living, fuel/tax differences) out of the price signal, so condition/damage adjustments aren't muddied by "this comp just happens to be listed on the other side of the country." Only useful if the query truck's own location is captured somewhere (nothing currently does this — no GPS/zip input in the capture flow). Deliberately deferred: touches the scraper, the DINO comp schema (coordinate with whoever owns that build first), and the frontend, so don't start until the core pipeline is working end-to-end.

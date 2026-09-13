@@ -2,10 +2,10 @@
 .claude
 .env
 *.env
-.venv/
+.venv
 __pycache__/
-*.py[cod]
+*.pyc
 backend/uploads/
 backend/results/
 data/comp_images/
-data/dino_index/
+data/dino_shards/
