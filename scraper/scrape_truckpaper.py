@@ -68,8 +68,18 @@ SEARCH_KEYWORDS = [
 PICKUP_CATEGORY_MARKERS = ("pickup", "ton pickup")
 
 BASE_URL = "https://www.truckpaper.com/listings/for-sale/trucks-and-trailers/all"
-PAGES_PER_KEYWORD = 15  # ~28 listings/page; yield varies (some pages are auction-heavy)
-DELAY_SECONDS = 2.5  # polite rate limit between page loads
+LISTINGS_PER_PAGE = 28
+# Upper bound only — pagination normally ends earlier, at the last page
+# implied by the "1 - 28 of N Listings" header or when results go stale.
+# (A single keyword like "Freightliner Cascadia" has ~8k listings / ~290 pages.)
+PAGES_PER_KEYWORD = 400
+# Stop a keyword after this many consecutive pages where every card was
+# already seen — deep pages of overlapping keywords are pure wasted loads.
+STALE_PAGES_BEFORE_STOP = 3
+DELAY_SECONDS = 2.5  # polite rate limit: minimum interval between page-load starts
+# Only the server-rendered HTML is needed; skip heavy assets (also lighter on
+# TruckPaper's servers). Scripts are left alone — Cloudflare's check needs them.
+BLOCKED_RESOURCE_TYPES = ("image", "media", "font")
 OUTPUT_PATH = Path(__file__).resolve().parent.parent / "data" / "truckpaper_raw.jsonl"
 
 USER_AGENT = (
@@ -78,6 +88,7 @@ USER_AGENT = (
 )
 
 TITLE_RE = re.compile(r"^(\d{4})\s+(.+)$")
+TOTAL_LISTINGS_RE = re.compile(r"of\s+([\d,]+)\s+Listings")
 
 
 def parse_price(text: str | None) -> float | None:
@@ -94,7 +105,28 @@ def parse_mileage(spec_value: str | None) -> int | None:
     return int(digits) if digits else None
 
 
-def parse_card(wrapper) -> dict | None:
+def extract_jsonld_images(soup) -> dict[str, str]:
+    """listing_id -> image URL from the page's schema.org Product JSON-LD.
+
+    Card <img> tags are rendered client-side only for the first few cards
+    (~4 of 28), but the server HTML's JSON-LD block carries an image for
+    every listing on the page."""
+    images: dict[str, str] = {}
+    for script in soup.find_all("script", type="application/ld+json"):
+        try:
+            data = json.loads(script.string or "")
+        except json.JSONDecodeError:
+            continue
+        for block in data if isinstance(data, list) else [data]:
+            offers = block.get("offers") if isinstance(block, dict) else None
+            for offer in (offers or {}).get("offers", []) if isinstance(offers, dict) else []:
+                item = offer.get("itemOffered") or {}
+                if item.get("productID") and item.get("image"):
+                    images[str(item["productID"])] = item["image"]
+    return images
+
+
+def parse_card(wrapper, fallback_images: dict[str, str] | None = None) -> dict | None:
     inner = wrapper.find("div", recursive=False)
     listing_id = inner.get("id") if inner else None
     if not listing_id:
@@ -139,8 +171,13 @@ def parse_card(wrapper) -> dict | None:
             mileage = parse_mileage(value.get_text(strip=True))
             break
 
-    img_el = wrapper.select_one(".listing-main-img")
-    image_url = img_el.get("src") if img_el else None
+    # Only the first few cards have a rendered <img>; the rest fall back to
+    # the JSON-LD image. Without the fallback most listings were silently
+    # dropped as "no image".
+    img_el = wrapper.select_one(".listing-main-img, .listing-main-image")
+    image_url = (img_el.get("src") or img_el.get("data-uc-src")) if img_el else None
+    if not image_url and fallback_images:
+        image_url = fallback_images.get(listing_id)
 
     return {
         "listing_id": listing_id,
@@ -178,21 +215,59 @@ def scrape(keywords: list[str] | None = None):
                     continue
         print(f"Resuming — {len(seen_ids)} listings already saved.")
 
+    # Ids filtered out (auction, no price, pickup) — persisted alongside the
+    # output so the stale-page check doesn't mistake them for fresh results
+    # on a rerun.
+    rejected_path = OUTPUT_PATH.with_name(OUTPUT_PATH.stem + "_rejected_ids.txt")
+    rejected_ids: set[str] = set()
+    if rejected_path.exists():
+        rejected_ids = set(rejected_path.read_text().split())
+
+    # Per-keyword pagination progress, so a rerun (e.g. after raising
+    # PAGES_PER_KEYWORD) continues deeper instead of re-walking early pages
+    # and tripping the stale-page stop on them.
+    progress_path = OUTPUT_PATH.with_name(OUTPUT_PATH.stem + "_progress.json")
+    progress: dict[str, dict] = json.loads(progress_path.read_text()) if progress_path.exists() else {}
+
     total_new = 0
-    with sync_playwright() as p, OUTPUT_PATH.open("a") as out_f:
+    last_load_start = 0.0
+    with sync_playwright() as p, OUTPUT_PATH.open("a") as out_f, rejected_path.open("a") as rejected_f:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(user_agent=USER_AGENT, viewport={"width": 1400, "height": 1000})
         page = context.new_page()
+        page.route(
+            "**/*",
+            lambda route: route.abort()
+            if route.request.resource_type in BLOCKED_RESOURCE_TYPES
+            else route.continue_(),
+        )
 
         for keyword in keywords:
-            for page_num in range(1, PAGES_PER_KEYWORD + 1):
+            state = progress.get(keyword, {"pages_done": 0, "done": False})
+            if state["done"]:
+                print(f"  [{keyword}] already finished in a previous run — skipping")
+                continue
+            first_page = state["pages_done"] + 1
+            total_pages = None  # from the result-count header; None if not found
+            last_page = PAGES_PER_KEYWORD
+            stale_pages = 0
+            for page_num in range(first_page, PAGES_PER_KEYWORD + 1):
+                if page_num > last_page:
+                    break
                 url = f"{BASE_URL}?Keywords={keyword.replace(' ', '+')}&Page={page_num}"
+
+                # Rate limit counts load time toward the delay instead of
+                # stacking a full sleep on top of every load.
+                wait = DELAY_SECONDS - (time.monotonic() - last_load_start)
+                if wait > 0:
+                    time.sleep(wait)
+                last_load_start = time.monotonic()
                 try:
                     page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    page.wait_for_selector(".list-listing-card-wrapper", timeout=10000)
                 except Exception as e:
-                    print(f"  [skip] {url} — navigation error: {e}")
-                    continue
-                time.sleep(DELAY_SECONDS)
+                    print(f"  [{keyword} p{page_num}] no listings loaded ({type(e).__name__}) — stopping pagination for this keyword")
+                    break
 
                 soup = BeautifulSoup(page.content(), "lxml")
                 wrappers = soup.select(".list-listing-card-wrapper")
@@ -200,25 +275,51 @@ def scrape(keywords: list[str] | None = None):
                     print(f"  [{keyword} p{page_num}] no listings — stopping pagination for this keyword")
                     break
 
+                if page_num == first_page:
+                    m = TOTAL_LISTINGS_RE.search(soup.get_text(" "))
+                    if m:
+                        total_listings = int(m.group(1).replace(",", ""))
+                        total_pages = -(-total_listings // LISTINGS_PER_PAGE)
+                        last_page = min(PAGES_PER_KEYWORD, total_pages)
+                        print(f"  [{keyword}] {total_listings} listings → {last_page} pages")
+
+                jsonld_images = extract_jsonld_images(soup)
                 new_this_page = 0
+                unseen_this_page = 0
                 for wrapper in wrappers:
-                    record = parse_card(wrapper)
-                    if not record or record["listing_id"] in seen_ids:
+                    record = parse_card(wrapper, jsonld_images)
+                    if not record or record["listing_id"] in seen_ids or record["listing_id"] in rejected_ids:
                         continue
-                    if record["price"] is None or not record["image_urls"]:
-                        continue  # drop rows with missing price or images (Phase 1c)
-                    if record["is_auction"]:
-                        continue  # opening bid != market price, skews base-price averages
+                    unseen_this_page += 1
                     cat_lower = (record["category"] or "").lower()
-                    if any(marker in cat_lower for marker in PICKUP_CATEGORY_MARKERS):
-                        continue  # commercial trucks only, no pickups
+                    if (
+                        record["price"] is None or not record["image_urls"]  # missing price or images (Phase 1c)
+                        or record["is_auction"]  # opening bid != market price, skews base-price averages
+                        or any(marker in cat_lower for marker in PICKUP_CATEGORY_MARKERS)  # commercial trucks only
+                    ):
+                        rejected_ids.add(record["listing_id"])
+                        rejected_f.write(record["listing_id"] + "\n")
+                        continue
                     seen_ids.add(record["listing_id"])
                     out_f.write(json.dumps(record) + "\n")
                     out_f.flush()
                     new_this_page += 1
                     total_new += 1
 
-                print(f"  [{keyword} p{page_num}] {len(wrappers)} cards, {new_this_page} new saved (total new: {total_new})")
+                print(f"  [{keyword} p{page_num}/{last_page}] {len(wrappers)} cards, {new_this_page} new saved (total new: {total_new})")
+
+                stale_pages = stale_pages + 1 if unseen_this_page == 0 else 0
+                progress[keyword] = {
+                    "pages_done": page_num,
+                    # Hitting the PAGES_PER_KEYWORD cap isn't "done" — raising
+                    # the cap later should continue from here.
+                    "done": (total_pages is not None and page_num >= total_pages)
+                    or stale_pages >= STALE_PAGES_BEFORE_STOP,
+                }
+                progress_path.write_text(json.dumps(progress, indent=2))
+                if stale_pages >= STALE_PAGES_BEFORE_STOP:
+                    print(f"  [{keyword}] {stale_pages} pages in a row with nothing unseen — moving to next keyword")
+                    break
 
         browser.close()
 
