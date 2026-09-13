@@ -66,5 +66,9 @@
   "Landscape Truck": {
     "pages_done": 18,
     "done": true
+  },
+  "Utility Truck": {
+    "pages_done": 6,
+    "done": false
   }
 }
