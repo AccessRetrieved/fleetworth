@@ -68,7 +68,11 @@
     "done": true
   },
   "Kenworth W900": {
-    "pages_done": 1,
-    "done": false
+    "pages_done": 4,
+    "done": true
+  },
+  "Kenworth T370": {
+    "pages_done": 3,
+    "done": true
   }
 }
