@@ -1,93 +1,6 @@
 {
-  "Volvo VNL": {
-    "pages_done": 63,
-    "done": true
-  },
-  "Volvo VNR": {
-    "pages_done": 20,
-    "done": true
-  },
-  "International LT": {
-    "pages_done": 109,
-    "done": true
-  },
-  "International LoneStar": {
-    "pages_done": 3,
-    "done": true
-  },
-  "Kenworth T880": {
-    "pages_done": 93,
-    "done": true
-  },
-  "Peterbilt 567": {
-    "pages_done": 72,
-    "done": true
-  },
-  "Western Star 4900": {
-    "pages_done": 19,
-    "done": true
-  },
-  "Mack Pinnacle": {
-    "pages_done": 29,
-    "done": true
-  },
-<<<<<<< HEAD
-  "Mack Anthem": {
-    "pages_done": 27,
-    "done": true
-  },
-  "Hino 268": {
-    "pages_done": 18,
-    "done": true
-  },
-  "Hino 338": {
-    "pages_done": 12,
-    "done": true
-  },
-  "Water Truck": {
-    "pages_done": 35,
-    "done": true
-  },
-<<<<<<< Updated upstream
-  "Winch Truck": {
-    "pages_done": 8,
-    "done": true
-=======
-  "Peterbilt 579": {
-    "pages_done": 25,
-    "done": true
-  },
-  "Kenworth W900": {
-    "pages_done": 27,
-    "done": true
-  },
-  "Kenworth T370": {
-    "pages_done": 17,
-    "done": true
-  },
-  "Tow Truck": {
-<<<<<<< HEAD
-    "pages_done": 102,
-    "done": true
-  },
-  "Bucket Truck": {
-    "pages_done": 46,
-    "done": true
-=======
-    "pages_done": 57,
-    "done": false
->>>>>>> 7da3bb7c87ba33a47969088c3b14537fefce7709
-=======
-  "Garbage Truck": {
-    "pages_done": 6,
-    "done": true
-  },
-  "Concrete Mixer Truck": {
-    "pages_done": 26,
-    "done": true
-  },
   "Isuzu FTR": {
-    "pages_done": 9,
+    "pages_done": 3,
     "done": true
   },
   "Isuzu FVR": {
@@ -95,21 +8,19 @@
     "done": true
   },
   "Sterling Acterra": {
-    "pages_done": 5,
+    "pages_done": 3,
     "done": true
   },
   "Autocar": {
-    "pages_done": 15,
+    "pages_done": 3,
     "done": true
   },
   "Snow Plow Truck": {
-    "pages_done": 17,
+    "pages_done": 3,
     "done": true
   },
   "Spreader Truck": {
     "pages_done": 3,
     "done": true
->>>>>>> Stashed changes
->>>>>>> 5df17deaec7b22670208e551311b5d1850fc1622
   }
 }
