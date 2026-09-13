@@ -19,10 +19,14 @@ The vision model extracts observable facts only; it must never generate the pric
 
 The frontend owns one camera-only live exterior walkaround. Do not add an upload picker or a capture-mode toggle. Interior/cab photos are out of scope (per PLAN.md): not prompted for, not uploaded, not penalized when absent.
 
-- **Start session** begins a browser `MediaRecorder` session video and enables capture.
+- **Start session** begins a browser `MediaRecorder` session video and enables capture. Start, **Pause/Resume**, and the save control stay on one row.
+- **Pause** suspends the recorder, freezes the session clock, and blocks auto-snap and manual snapping until resumed; paused time is excluded from the recorded duration. Disable the control when `MediaRecorder.pause` is unavailable.
 - A flexible guide suggests wide, front, side, rear, tire, and remaining exterior coverage. It advances only after a photo is successfully saved, never from elapsed time. It is deliberately not a fixed-angle checklist: advancing offers the next idea and does not mark the previous suggestion verified or complete.
+- The guide renders as one compact overlay on the camera preview, visible only while recording: current suggestion number, title, instruction, tip, and a progress bar of the remaining ideas. Keep it there rather than reintroducing a separate side panel, and keep it clear of the recording badge and framing status.
+- On phone widths (≤640px) the guide moves out of the frame and sits above the preview, and the in-frame recording badge is hidden so the small camera view stays unobstructed; the header session state still reports recording. Both are markup-order/CSS concerns only — the guide stays a sibling of `.preview` inside `.capture-stage`, absolutely positioned over it on larger screens.
 - While recording, auto-snap may collect clear frames and the user may manually snap them. Keep 3–7 photos; the first three are the minimum, the rest improve coverage. Leave enough auto-capture delay for the user to walk to a meaningfully different view.
-- **Stop session** finalizes the original recording. Show the finished recording in the review area. The video is a live-capture/authenticity record and must not be used by pricing or visual extraction.
+- **Stop session** finalizes the original recording and is labelled **Save** while a session is ongoing. Show the finished recording in the review area. The video is a live-capture/authenticity record and must not be used by pricing or visual extraction.
+- The page reads as three numbered steps — (1) Film Truck, (2) Review Photos, (3) Review Recording — with the number in a circle beside a short title. Keep this copy terse: no eyebrow labels, no restating that the video is separate from pricing, and no file sizes. Blocking states surface as one line with a red `!` (for example "Restart to collect enough photos", or "Unpause to collect enough photos" when paused short of the minimum).
 - **Submit** sends the 3–7 exterior photos and finalized video together. The UI must have loading, priced, error, and `needs_more_info` states.
 
 ## Browser-side evidence rules

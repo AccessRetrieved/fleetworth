@@ -10,7 +10,7 @@ const GUIDE_STEPS = [
 const MIN_PHOTOS = 3;
 const TARGET_PHOTOS = 7;
 const ANALYSIS_INTERVAL_MS = 600;
-const AUTO_CAPTURE_DELAY_MS = 10000;
+const AUTO_CAPTURE_DELAY_MS = 6000;
 const MIN_VEHICLE_SCORE = 0.42;
 const VEHICLE_CLASSES = new Set(["truck", "car", "bus"]);
 
@@ -20,6 +20,7 @@ const captureCanvas = document.querySelector("#captureCanvas");
 const cameraMessage = document.querySelector("#cameraMessage");
 const cameraSelect = document.querySelector("#cameraSelect");
 const startButton = document.querySelector("#startButton");
+const pauseButton = document.querySelector("#pauseButton");
 const stopButton = document.querySelector("#stopButton");
 const captureButton = document.querySelector("#captureButton");
 const autoCapture = document.querySelector("#autoCapture");
@@ -29,18 +30,20 @@ const actionMessage = document.querySelector("#actionMessage");
 const frameStatus = document.querySelector("#frameStatus");
 const frameStatusText = document.querySelector("#frameStatusText");
 const captureFlash = document.querySelector("#captureFlash");
-const guideList = document.querySelector("#guideList");
-const stepLabel = document.querySelector("#stepLabel");
-const captureTitle = document.querySelector("#captureTitle");
-const captureInstruction = document.querySelector("#captureInstruction");
-const shotTip = document.querySelector("#shotTip");
+const guideOverlay = document.querySelector("#guideOverlay");
+const guideOverlayStep = document.querySelector("#guideOverlayStep");
+const guideOverlayTitle = document.querySelector("#guideOverlayTitle");
+const guideOverlayInstruction = document.querySelector("#guideOverlayInstruction");
+const guideOverlayTip = document.querySelector("#guideOverlayTip");
+const guideDots = document.querySelector("#guideDots");
 const recordingTime = document.querySelector("#recordingTime");
 const recordingBadge = document.querySelector("#recordingBadge");
 const sessionState = document.querySelector("#sessionState");
 const captureGrid = document.querySelector("#captureGrid");
 const reviewSummary = document.querySelector("#reviewSummary");
+const submitStatus = document.querySelector("#submitStatus");
+const submitStatusIcon = document.querySelector("#submitStatusIcon");
 const submitHeading = document.querySelector("#submitHeading");
-const submitDetail = document.querySelector("#submitDetail");
 const resultPanel = document.querySelector("#resultPanel");
 const sessionVideoReview = document.querySelector("#sessionVideoReview");
 const sessionPlayback = document.querySelector("#sessionPlayback");
@@ -52,6 +55,7 @@ let activeCameraId = "";
 let isOpeningCamera = false;
 let isCapturing = false;
 let isRecording = false;
+let isPaused = false;
 let detector;
 let detectorMode = "loading";
 let mediaRecorder;
@@ -60,6 +64,7 @@ let sessionVideo;
 let sessionVideoUrl;
 let sessionDurationMs = 0;
 let recordingStartedAt;
+let elapsedBeforePause = 0;
 let analysisTimer;
 let clockTimer;
 let stableSince = 0;
@@ -99,26 +104,32 @@ function formatDuration(milliseconds) {
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function renderGuide() {
-  guideList.replaceChildren();
+function renderGuideDots() {
+  guideDots.replaceChildren();
   GUIDE_STEPS.forEach((step, index) => {
-    const item = document.createElement("li");
-    item.className = "guide-item";
-    item.classList.toggle("is-current", index === guideIndex() && isRecording);
-    item.innerHTML = `<span>${index + 1}</span><div><strong>${step.title}</strong><small>${step.instruction}</small></div>`;
-    guideList.append(item);
+    const dot = createElement("li", "guide-dot");
+    dot.classList.toggle("is-done", index < guideIndex());
+    dot.classList.toggle("is-current", index === guideIndex());
+    dot.title = step.title;
+    guideDots.append(dot);
   });
+}
+
+function renderSessionControls() {
+  stopButton.textContent = isRecording ? "Save" : "Stop session";
+  pauseButton.textContent = isPaused ? "Resume" : "Pause";
+  pauseButton.setAttribute("aria-pressed", String(isPaused));
 }
 
 function renderCurrentGuide() {
   const guide = currentGuide();
-  stepLabel.textContent = isRecording ? `Optional suggestion ${guideIndex() + 1} of ${GUIDE_STEPS.length} · ${captures.length} ${captures.length === 1 ? "photo" : "photos"}` : "Camera check";
-  captureTitle.textContent = isRecording ? guide.title : "Start a live walkaround";
-  captureInstruction.textContent = isRecording
-    ? guide.instruction
-    : "When you are beside the truck, start the session. We will guide you around it and snap clear frames.";
-  shotTip.textContent = guide.tip;
-  renderGuide();
+  guideOverlay.hidden = !isRecording;
+  guideOverlay.classList.toggle("is-paused", isPaused);
+  guideOverlayStep.textContent = `Suggestion ${guideIndex() + 1} of ${GUIDE_STEPS.length}`;
+  guideOverlayTitle.textContent = guide.title;
+  guideOverlayInstruction.textContent = guide.instruction;
+  guideOverlayTip.textContent = guide.tip;
+  renderGuideDots();
 }
 
 function renderCaptures() {
@@ -152,28 +163,43 @@ function renderCaptures() {
   }
 }
 
+function setSubmitStatus(tone, message) {
+  submitStatus.className = `submit-status is-${tone}`;
+  submitStatusIcon.textContent = tone === "ready" ? "✓" : tone === "alert" ? "!" : "•";
+  submitHeading.textContent = message;
+}
+
+function renderSubmitStatus(count, enoughPhotos, ready) {
+  const shortfall = MIN_PHOTOS - count;
+  if (ready) setSubmitStatus("ready", "Capture evidence is ready");
+  else if (sessionVideo) setSubmitStatus("alert", "Restart to collect enough photos");
+  else if (isPaused) setSubmitStatus("alert", enoughPhotos ? "Unpause or save the session" : "Unpause to collect enough photos");
+  else if (isRecording) setSubmitStatus("neutral", enoughPhotos ? "Save the session when you finish" : `${shortfall} more ${shortfall === 1 ? "photo" : "photos"} needed`);
+  else setSubmitStatus("neutral", "Start a session to begin");
+}
+
 function renderReview() {
   const count = captures.length;
   const enoughPhotos = count >= MIN_PHOTOS;
   const ready = enoughPhotos && Boolean(sessionVideo);
   reviewSummary.textContent = isRecording
-    ? `${count} snapped ${count === 1 ? "photo" : "photos"} so far. Keep walking for broad coverage.`
+    ? `${count} snapped ${count === 1 ? "photo" : "photos"} so far${isPaused ? " · paused" : ""}.`
     : count
-      ? `${count} ${count === 1 ? "photo" : "photos"} captured${sessionVideo ? " with a recorded session" : ""}${enoughPhotos ? " · minimum met" : ` · ${MIN_PHOTOS - count} more needed`}.`
+      ? `${count} ${count === 1 ? "photo" : "photos"} captured${enoughPhotos ? " · minimum met" : ` · ${MIN_PHOTOS - count} more needed`}.`
       : "Start a session to collect 3–7 photos.";
-  submitHeading.textContent = ready ? "Capture evidence is ready" : sessionVideo ? "Restart to collect enough photos" : "Stop the session to finalize video";
-  submitDetail.textContent = "Photos feed visual extraction. The session video is kept separately as a live-capture record.";
+  renderSubmitStatus(count, enoughPhotos, ready);
   resetButton.disabled = !captures.length && !sessionVideo && !isRecording;
   submitButton.disabled = !ready || isRecording || isSubmitting;
   sessionVideoReview.hidden = !sessionVideoUrl;
   if (sessionVideoUrl) {
     if (sessionPlayback.src !== sessionVideoUrl) sessionPlayback.src = sessionVideoUrl;
-    sessionVideoMeta.textContent = `${formatDuration(sessionDurationMs)} · ${(sessionVideo.size / 1024 / 1024).toFixed(1)} MB · kept separate from pricing analysis.`;
+    sessionVideoMeta.textContent = formatDuration(sessionDurationMs);
   }
   renderCaptures();
 }
 
 function renderAll() {
+  renderSessionControls();
   renderCurrentGuide();
   renderReview();
 }
@@ -331,6 +357,12 @@ async function analyzeCurrentFrame() {
 }
 
 function updateCaptureReadiness() {
+  if (isPaused) {
+    captureButton.disabled = true;
+    stableSince = 0;
+    setFrameStatus("warning", "Session paused — resume to capture");
+    return;
+  }
   const canSnap = isRecording && currentAssessment.ready && captures.length < TARGET_PHOTOS && !isCapturing;
   captureButton.disabled = !canSnap;
   setFrameStatus(currentAssessment.type, currentAssessment.message);
@@ -354,14 +386,34 @@ function sessionVideoFilename() {
   return sessionVideo?.type.includes("mp4") ? "session.mp4" : "session.webm";
 }
 
-function startClock() {
+function sessionElapsedMs() {
+  return elapsedBeforePause + (recordingStartedAt ? Date.now() - recordingStartedAt : 0);
+}
+
+function runClock() {
   window.clearInterval(clockTimer);
+  clockTimer = window.setInterval(() => {
+    recordingTime.textContent = formatDuration(sessionElapsedMs());
+  }, 1000);
+}
+
+function startClock() {
+  elapsedBeforePause = 0;
   recordingStartedAt = Date.now();
   recordingTime.textContent = "00:00";
-  clockTimer = window.setInterval(() => {
-    const elapsed = Date.now() - recordingStartedAt;
-    recordingTime.textContent = formatDuration(elapsed);
-  }, 1000);
+  runClock();
+}
+
+function pauseClock() {
+  elapsedBeforePause = sessionElapsedMs();
+  recordingStartedAt = undefined;
+  stopClock();
+  recordingTime.textContent = formatDuration(elapsedBeforePause);
+}
+
+function resumeClock() {
+  recordingStartedAt = Date.now();
+  runClock();
 }
 
 function stopClock() {
@@ -460,34 +512,63 @@ function startSession() {
   mediaRecorder.addEventListener("dataavailable", (event) => { if (event.data.size) mediaChunks.push(event.data); });
   mediaRecorder.addEventListener("stop", () => {
     const type = mediaRecorder.mimeType || "video/webm";
-    sessionDurationMs = Date.now() - recordingStartedAt;
+    sessionDurationMs = sessionElapsedMs();
     sessionVideo = new Blob(mediaChunks, { type });
     sessionVideoUrl = URL.createObjectURL(sessionVideo);
     isRecording = false;
+    isPaused = false;
     stopClock();
     recordingBadge.classList.add("is-hidden");
     startButton.disabled = true;
+    pauseButton.disabled = true;
     stopButton.disabled = true;
     cameraSelect.disabled = cameraSelect.options.length <= 1;
-    setSessionState("Session recorded", "complete");
+    setSessionState("Session saved", "complete");
     actionMessage.textContent = captures.length >= MIN_PHOTOS ? "Session video saved locally. Review the evidence, then submit when ready." : `Session saved without enough photos. Discard it and restart to collect ${MIN_PHOTOS} clear photos in one continuous session.`;
     renderAll();
   }, { once: true });
   mediaRecorder.start(1000);
   isRecording = true;
+  isPaused = false;
   suggestionIndex = 0;
   startButton.disabled = true;
+  pauseButton.disabled = typeof mediaRecorder.pause !== "function";
   stopButton.disabled = false;
   cameraSelect.disabled = true;
   recordingBadge.classList.remove("is-hidden");
   setSessionState("Recording live session", "recording");
-  actionMessage.textContent = "Walk around the truck. Clear frames will snap automatically.";
+  actionMessage.textContent = "";
   startClock();
   renderAll();
 }
 
+function togglePause() {
+  if (!isRecording || !mediaRecorder) return;
+  if (isPaused) {
+    if (mediaRecorder.state === "paused") mediaRecorder.resume();
+    isPaused = false;
+    resumeClock();
+    recordingBadge.classList.remove("is-hidden");
+    setSessionState("Recording live session", "recording");
+    actionMessage.textContent = "Session resumed. Keep moving around the truck.";
+  } else {
+    if (mediaRecorder.state !== "recording") return;
+    mediaRecorder.pause();
+    isPaused = true;
+    pauseClock();
+    stableSince = 0;
+    recordingBadge.classList.add("is-hidden");
+    setSessionState("Session paused", "paused");
+    actionMessage.textContent = captures.length >= MIN_PHOTOS
+      ? "Session paused. Resume to keep filming, or save it."
+      : `Session paused with ${captures.length} of ${MIN_PHOTOS} required photos. Resume to collect more.`;
+  }
+  renderAll();
+  updateCaptureReadiness();
+}
+
 function stopSession() {
-  if (mediaRecorder?.state === "recording") mediaRecorder.stop();
+  if (mediaRecorder?.state === "recording" || mediaRecorder?.state === "paused") mediaRecorder.stop();
 }
 
 function canvasToBlob(canvas) {
@@ -495,7 +576,7 @@ function canvasToBlob(canvas) {
 }
 
 async function captureFrame({ automatic = false } = {}) {
-  if (!isRecording || !currentAssessment.ready || captures.length >= TARGET_PHOTOS || isCapturing) return;
+  if (!isRecording || isPaused || !currentAssessment.ready || captures.length >= TARGET_PHOTOS || isCapturing) return;
   isCapturing = true;
   stopAnalysisLoop();
   const scale = Math.min(1, 1920 / preview.videoWidth);
@@ -688,8 +769,13 @@ function resetSession({ confirmUser = true, followupMessage = "Session discarded
   sessionPlayback.load();
   sessionVideoReview.hidden = true;
   suggestionIndex = 0;
+  isPaused = false;
+  elapsedBeforePause = 0;
+  recordingStartedAt = undefined;
   recordingTime.textContent = "00:00";
   startButton.disabled = !cameraStream;
+  pauseButton.disabled = true;
+  stopButton.disabled = true;
   clearResult();
   setSessionState(cameraStream ? "Camera ready" : "Ready to capture", "ready");
   actionMessage.textContent = followupMessage;
@@ -717,6 +803,7 @@ async function loadDetector() {
 
 cameraSelect.addEventListener("change", () => { if (!isRecording && cameraSelect.value !== activeCameraId) openCamera(); });
 startButton.addEventListener("click", startSession);
+pauseButton.addEventListener("click", togglePause);
 stopButton.addEventListener("click", stopSession);
 captureButton.addEventListener("click", () => captureFrame());
 resetButton.addEventListener("click", () => resetSession());
@@ -724,7 +811,7 @@ submitButton.addEventListener("click", submitSession);
 autoCapture.addEventListener("change", () => { stableSince = 0; });
 navigator.mediaDevices?.addEventListener("devicechange", () => refreshCameraList().catch(() => {}));
 window.addEventListener("beforeunload", () => {
-  if (mediaRecorder?.state === "recording") mediaRecorder.stop();
+  if (mediaRecorder?.state === "recording" || mediaRecorder?.state === "paused") mediaRecorder.stop();
   stopAnalysisLoop();
   stopClock();
   cameraStream?.getTracks().forEach((track) => track.stop());

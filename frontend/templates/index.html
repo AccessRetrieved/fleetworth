@@ -6,6 +6,9 @@
     <meta name="theme-color" content="#07111f" />
     <title>Fleetworth — Live Truck Capture</title>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
   </head>
   <body data-predict-endpoint="http://127.0.0.1:8000/predict">
@@ -16,66 +19,60 @@
       </header>
 
       <div class="workspace">
-        <aside class="guide-panel" aria-labelledby="guideTitle">
-          <p class="eyebrow">Suggested coverage</p>
-          <h2 id="guideTitle">Helpful views to include</h2>
-          <p class="guide-copy">These are ideas, not verified checkpoints. Move naturally around the truck and use whichever angles show it clearly.</p>
-          <ol id="guideList" class="guide-list"></ol>
-          <div class="capture-rules">
-            <span>3–7</span>
-            <p><strong>Clear photos</strong> feed the price model. Suggestions do not need to match the number of photos.</p>
-          </div>
-        </aside>
-
         <section class="capture-panel" aria-labelledby="captureTitle">
           <div class="capture-heading">
-            <div>
-              <p id="stepLabel" class="eyebrow">Camera check</p>
-              <h1 id="captureTitle">Start a live walkaround</h1>
-              <p id="captureInstruction" class="capture-instruction">When you are beside the truck, start the session. We will guide you around it and snap clear frames.</p>
-            </div>
+            <h1 id="captureTitle" class="step-title"><span class="step-index">1</span> Film Truck</h1>
             <div class="recording-readout"><span id="recordingTime">00:00</span><small>session</small></div>
           </div>
 
-          <section class="preview" aria-label="Live truck camera preview">
-            <video id="cameraPreview" autoplay playsinline muted></video>
-            <canvas id="detectionOverlay" aria-hidden="true"></canvas>
-            <div class="framing-guide" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-            <div id="captureFlash" class="capture-flash" aria-hidden="true"></div>
-            <div id="cameraMessage" class="camera-message" role="status" aria-live="polite">Requesting camera access…</div>
-            <div id="frameStatus" class="frame-status is-loading" role="status" aria-live="polite"><span class="status-dot"></span><span id="frameStatusText">Loading framing assistant…</span></div>
-            <div id="recordingBadge" class="recording-badge is-hidden"><span></span>Recording</div>
-          </section>
-
-          <div class="shot-tip"><span>Guide</span><p id="shotTip">Keep the truck fully inside the corner marks.</p></div>
+          <div class="capture-stage">
+            <div id="guideOverlay" class="guide-overlay" role="status" aria-live="polite" hidden>
+              <p id="guideOverlayStep" class="guide-overlay-step">Suggestion 1 of 6</p>
+              <strong id="guideOverlayTitle" class="guide-overlay-title">Start wide</strong>
+              <small id="guideOverlayInstruction" class="guide-overlay-instruction">Frame the whole truck from a few steps back.</small>
+              <p id="guideOverlayTip" class="guide-overlay-tip">Keep all body edges inside the guide.</p>
+              <ol id="guideDots" class="guide-dots" aria-hidden="true"></ol>
+            </div>
+            <section class="preview" aria-label="Live truck camera preview">
+              <video id="cameraPreview" autoplay playsinline muted></video>
+              <canvas id="detectionOverlay" aria-hidden="true"></canvas>
+              <div class="framing-guide" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+              <div id="captureFlash" class="capture-flash" aria-hidden="true"></div>
+              <div id="cameraMessage" class="camera-message" role="status" aria-live="polite">Requesting camera access…</div>
+              <div id="frameStatus" class="frame-status is-loading" role="status" aria-live="polite"><span class="status-dot"></span><span id="frameStatusText">Loading framing assistant…</span></div>
+              <div id="recordingBadge" class="recording-badge is-hidden"><span></span>Recording</div>
+            </section>
+          </div>
 
           <div class="camera-controls" aria-label="Camera controls">
             <label class="camera-picker" for="cameraSelect"><span>Camera</span><select id="cameraSelect" disabled><option value="">Detecting cameras…</option></select></label>
-            <button id="startButton" class="button button-primary" type="button" disabled>Start session</button>
-            <button id="stopButton" class="button button-secondary" type="button" disabled>Stop session</button>
+            <div class="session-buttons">
+              <button id="startButton" class="button button-primary" type="button" disabled>Start session</button>
+              <button id="pauseButton" class="button button-secondary" type="button" aria-pressed="false" disabled>Pause</button>
+              <button id="stopButton" class="button button-secondary" type="button" disabled>Stop session</button>
+            </div>
           </div>
 
           <div class="capture-actions">
-            <label class="auto-capture-toggle" for="autoCapture"><input id="autoCapture" type="checkbox" checked /><span class="toggle-track"><span></span></span><span><strong>Auto-snap clear frames</strong><small>Waits about 10 seconds between clear shots</small></span></label>
+            <label class="auto-capture-toggle" for="autoCapture"><input id="autoCapture" type="checkbox" checked /><span class="toggle-track"><span></span></span><span><strong>Auto-snap clear frames</strong></span></label>
             <button id="captureButton" class="button button-secondary" type="button" disabled>Snap photo</button>
           </div>
           <p id="actionMessage" class="action-message" aria-live="polite"></p>
         </section>
 
         <section class="review-panel" aria-labelledby="reviewTitle">
-        <div class="review-heading"><div><p class="eyebrow">Session evidence</p><h2 id="reviewTitle">Review snapped photos</h2></div><p id="reviewSummary">Start a session to collect 3–7 photos.</p></div>
+        <div class="review-heading"><h2 id="reviewTitle" class="step-title"><span class="step-index">2</span> Review Photos</h2><p id="reviewSummary" class="review-summary">Start a session to collect 3–7 photos.</p></div>
         <div id="captureGrid" class="capture-grid"></div>
         <section id="sessionVideoReview" class="session-video-review" hidden aria-labelledby="sessionVideoTitle">
           <div class="session-video-copy">
-            <p class="eyebrow">Authenticity record</p>
-            <h2 id="sessionVideoTitle">Review session recording</h2>
-            <p id="sessionVideoMeta">The recording is kept separate from pricing analysis.</p>
+            <h2 id="sessionVideoTitle" class="step-title"><span class="step-index">3</span> Review Recording</h2>
+            <p id="sessionVideoMeta" class="step-meta">00:00</p>
           </div>
           <video id="sessionPlayback" controls playsinline preload="metadata"></video>
         </section>
         <div class="submit-row">
           <button id="resetButton" class="button button-quiet" type="button" disabled>Discard session</button>
-          <div class="submit-copy"><strong id="submitHeading">No recording yet</strong><span id="submitDetail">Finish a live session before sending evidence.</span></div>
+          <p id="submitStatus" class="submit-status is-neutral" aria-live="polite"><span id="submitStatusIcon" class="submit-status-icon" aria-hidden="true">•</span><span id="submitHeading">Start a session to begin</span></p>
           <button id="submitButton" class="button button-submit" type="button" disabled>Submit for analysis</button>
         </div>
         </section>
