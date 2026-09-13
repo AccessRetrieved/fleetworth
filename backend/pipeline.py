@@ -10,7 +10,7 @@ pipeline; it's stored as-is by the API layer as an authenticity record.
 """
 from damage_visualization import save_annotated_photos
 from fusion import fuse_extractions
-from limits import average_hash, evaluate, is_blurry, is_near_duplicate
+from limits import BLUR_VARIANCE_THRESHOLD, average_hash, blur_variance, evaluate, is_near_duplicate
 from pricing_formula import compute_price
 from vision_extract import _client, extract_from_image
 
@@ -40,9 +40,12 @@ def run_pipeline(
     duplicate_count = 0
     for photo in photos:
         if isinstance(photo, bytes):
-            if is_blurry(photo):
+            variance = blur_variance(photo)
+            if variance < BLUR_VARIANCE_THRESHOLD:
+                print(f"[blur-check] REJECTED as blurry, variance={variance:.1f} (threshold {BLUR_VARIANCE_THRESHOLD})", flush=True)
                 extractions.append(None)
                 continue
+            print(f"[blur-check] accepted, variance={variance:.1f}", flush=True)
             # Reject near-identical repeats of a view already counted —
             # otherwise MIN_USABLE_PHOTOS can be satisfied with the same
             # shot taken 3 times instead of real coverage.

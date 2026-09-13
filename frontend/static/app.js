@@ -216,16 +216,25 @@ function createElement(tag, className, text) {
   return element;
 }
 
+const BACKEND_PORT = 8000; // uvicorn's port (see backend/README.md)
+
 function apiOrigin() {
-  // annotated_damage_photos paths are backend-relative (e.g.
-  // "/results/<id>/photo_0_annotated.jpg"); the frontend is served from a
-  // different origin, so resolve them against the backend's own origin.
+  // The backend origin, for both the /predict call and resolving the
+  // backend-relative annotated_damage_photos paths. If data-predict-endpoint
+  // is set to a real URL, honor it (e.g. a backend on a different host);
+  // otherwise default to whatever host/IP loaded this page, on
+  // BACKEND_PORT -- this way a phone or laptop that opens
+  // http://<this-machine's-LAN-IP>:5000/ automatically talks to the backend
+  // at that same IP, with no per-device configuration.
   const endpoint = document.body.dataset.predictEndpoint || "";
-  try {
-    return new URL(endpoint, window.location.href).origin;
-  } catch {
-    return "";
+  if (endpoint) {
+    try {
+      return new URL(endpoint, window.location.href).origin;
+    } catch {
+      // fall through to the dynamic default below
+    }
   }
+  return `${window.location.protocol}//${window.location.hostname}:${BACKEND_PORT}`;
 }
 
 function showResult(type, title, message, content) {
@@ -761,7 +770,7 @@ async function submitSession() {
     actionMessage.textContent = "Record a session and collect at least three clear photos before submitting.";
     return;
   }
-  const endpoint = document.body.dataset.predictEndpoint;
+  const endpoint = `${apiOrigin()}/predict`;
   window.dispatchEvent(new CustomEvent("fleetworth:capture-ready", { detail: { manifest: payload.manifest } }));
   if (!endpoint) {
     showResult("ready", "Evidence package ready", `${captures.length} exterior photos and the session video are ready for the FastAPI /predict endpoint.`);
