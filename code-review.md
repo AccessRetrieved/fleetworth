@@ -1,207 +1,92 @@
-# Fleetworth — Full-Stack Code Review
+# Code Review
 
-**Scope:** frontend → backend flow (everything)  
-**Focus:** correctness / UX robustness / security / performance / readability / PLAN.md design invariants  
-**Branch reviewed:** `main` (as of review date)
+**Scope:** Whole tracked repository at `/Users/jonathantran/Documents/ChatGPT/54 Hacks`, commit `525ca2ec2c8d95eebe86f00cde6157b071c9172a`: backend API, extraction, fusion, pricing, DINO retrieval/index construction, scraper/cleaner, tests, dependency manifests/locks, and consistency checks on committed data. No PR/base branch was supplied; this is a repository review, not a review limited to the latest commit. The working tree was initially clean.
+**Date:** 2026-09-12
+**Project:** Fleetworth estimates commercial-truck prices from exterior photos, using vision extraction and comparable listings; capture videos are stored as evidence.
+**Stack:** Python 3.14+, FastAPI, OpenAI client, OpenCV/Pillow, NumPy, PyTorch/DINOv2, FAISS, Playwright, BeautifulSoup, and pytest. No frontend implementation is tracked in this checkout.
+**Audience and constraints:** Repository authors; preserve the existing architecture and propose focused fixes. Source review is read-only; this report is the only repository file created or changed.
 
----
+## Summary
 
-## (a) Standard bugs / security / performance
+The separation between visual extraction and listing-backed pricing is clear, and the existing tests cover useful retrieval and fallback behavior. However, extraction failures can silently change an appraisal, confidence can overstate the evidence, and a prediction blocks the server's event loop. The locked native dependency combination also reproducibly aborts the process on this Mac when FAISS searches after Torch is loaded. I would address the Major findings before treating this checkout as ready for a shared demo or deployment; the native crash must be resolved for this environment.
 
-### Critical — API failures masquerade as "this is not a truck"
+Validation performed:
 
-`vision_extract._fallback_unknown()` (returned on timeouts/rate limits) hardcodes `is_truck: False`, `is_real_photo: False`, `confidence: 0.0`. Every one of those fields is a "not a truck" vote in `limits.evaluate`:
+- `PYTHONDONTWRITEBYTECODE=1 backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/test_pipeline_visual.py backend/tests/test_visual_pricing.py`: **18 passed**.
+- The full `backend/tests` run completed two tests and then aborted with exit code 134 inside FAISS search. The failing test reproduced in isolation with output capture and pytest's faulthandler disabled; see Major 1. The complete suite therefore did **not** pass.
+- In-memory probes reproduced the extraction, confidence, event-loop, schema-validation, and empty-shard findings below. API file writes were mocked; no live OpenAI calls, model downloads, scraper runs, or index rebuilds were performed.
+- The committed clean dataset contains 1,958 unique listings. All 538 base-price buckets match recomputed statistics from that dataset; 251 buckets contain a single listing. The committed DINO index metadata has 375 items, of which 374 appear in the current clean dataset.
+- Dependency manifests and local runtime behavior were inspected; an external vulnerability-advisory audit was not performed. Live scraping, actual vision accuracy, and a pretrained DINO run were not validated.
 
-```python
-not_truck_votes = sum(
-    1 for e in usable
-    if not e.get("is_truck", True)
-    or not e.get("is_real_photo", True)
-    or e.get("confidence", 1.0) < NOT_TRUCK_CONFIDENCE_THRESHOLD
-)
-if not_truck_votes > len(usable) / 2:
-    return {"status": "not_a_truck", ...}
-```
+## Critical
 
-If OpenAI rate-limits or times out on 2 of 3 photos — entirely plausible mid-demo — a judge photographing a real truck is told their photo isn't a truck. A fallback record carries `_error`; `evaluate` should distinguish "extraction failed" from "extraction says not-truck" and return an error/retry tier instead. This is the single most demo-dangerous bug in the repo.
+## Major
 
-**Severity:** Critical
+### 1. The locked Torch/FAISS combination aborts the process on the review environment
 
----
+- **Severity:** Major
+- **File and line reference:** `backend/pyproject.toml:9,18`; `backend/uv.lock:270–271,1021–1022`; `backend/dino_retrieval.py:115–125,179–185`.
+- **What's wrong and why it matters:** The installed `torch==2.14.0` and `faiss-cpu==1.15.0` match the lockfile. Running `test_saved_index_round_trips_and_searches_by_cosine` on this Mac terminates Python with exit code 134 and `OMP: Error #15: Initializing libomp.dylib, but found libomp.dylib already initialized.` The native trace enters FAISS's bundled OpenMP runtime. The real retrieval path also loads Torch and then calls FAISS search in the same process. This is a process abort, so the Python exception handler intended to preserve lookup-only pricing cannot catch it; the worker dies instead. This finding is verified on this environment, not a claim that every supported platform fails.
+- **Suggested fix:** Establish and lock a tested macOS-compatible Torch/FAISS installation that uses a compatible single OpenMP runtime, and document the supported installation path. Add a subprocess smoke test that exercises Torch inference followed by FAISS search, so native termination becomes an observable test failure. Do not treat suppressing the duplicate-runtime check as a verified fix.
+- **Reproduction:** `PYTHONDONTWRITEBYTECODE=1 backend/.venv/bin/python -B -m pytest -q -s -p no:cacheprovider -p no:faulthandler backend/tests/test_dino_retrieval.py::test_saved_index_round_trips_and_searches_by_cosine`.
 
-### Major — the whole server freezes during a prediction
+### 2. A prediction executes the entire synchronous pipeline on the async event loop
 
-`predict` is `async def`, but `run_pipeline` is synchronous and makes 3–7 serial OpenAI calls (plus OpenCV work) directly on the event loop. One submission blocks all other requests for the full pipeline duration (likely 15–45s). Either make `predict` a plain `def` (FastAPI threadpool) or run the pipeline in an executor — and ideally parallelize the per-photo extraction calls, which are embarrassingly parallel and dominate latency.
+- **Severity:** Major
+- **File and line reference:** `backend/main.py:35–38,59–62`; `backend/pipeline.py:73–92`; `backend/vision_extract.py:169–184`.
+- **What's wrong and why it matters:** `predict` is an async route, but directly calls synchronous `run_pipeline`. That function makes sequential blocking API calls for every usable photo, then performs CPU inference and retrieval. During that call, the worker's event loop cannot serve other requests, including dispatching health checks. Slow upstream responses therefore stall unrelated users even when CPU usage is low. A probe with mocked disk writes and a 250 ms pipeline delayed a concurrently scheduled 10 ms heartbeat to approximately 307 ms.
+- **Suggested fix:** Execute the synchronous pipeline through FastAPI/Starlette's thread-pool helper or a bounded worker executor; move blocking disk work off the event loop as well. Bound concurrent expensive predictions to avoid replacing event-loop starvation with unbounded inference work. Verify that a health request completes while a stubbed prediction is deliberately blocked.
 
-**Severity:** Major
+### 3. Upload handling has no application size/count limits and retains videos indefinitely
 
----
+- **Severity:** Major
+- **File and line reference:** `backend/main.py:39–59`.
+- **What's wrong and why it matters:** The endpoint enforces a minimum photo count and client-supplied MIME types, but no application maximum photo count, per-file size, or total submission size. It reads every photo and the entire video into bytes, then saves the video permanently before knowing whether the submission can be assessed. Large videos can exhaust memory; repeated rejected submissions still consume disk; excessive photo counts expand paid extraction work. Framework multipart file-count defaults do not provide an appropriate application budget for these resources. No deployment-level compensating limits are present in the repository.
+- **Suggested fix:** Define maximum photos, per-photo bytes, video bytes, and total submission bytes. Stream the video in bounded chunks while enforcing the limit, and reject oversized submissions before running extraction. Set a retention/cleanup policy for stored videos and partial/failed submissions. Enforce a corresponding ingress body limit if a reverse proxy is used. Add boundary tests using mocked processing so rejected uploads incur no extraction calls or retained partial files.
 
-### Major — FastAPI error detail never reaches the user
+### 4. Failed extractions are counted as valid views and contribute invented condition data
 
-Backend errors raise `HTTPException(detail=...)`, which serializes as `{"detail": ...}`, but the frontend reads `data.message`:
+- **Severity:** Major
+- **File and line reference:** `backend/vision_extract.py:145–159,187–194`; `backend/limits.py:52,64–79`; `backend/pipeline.py:80–92`; `backend/fusion.py:89–110`.
+- **What's wrong and why it matters:** API/parse failures become ordinary dictionaries with `condition="fair"`, zero confidence, and negative truck/photo flags. Downstream code excludes only `None`, so these failures count toward the minimum usable-photo requirement and participate in condition fusion. A reproduced submission with two successful, excellent-condition views at confidence 0.9 and one synthetic rate-limit fallback returns `status="priced"`, `views_used=3`, `condition="fair"`, and confidence **0.9**. It both bypasses the three-valid-view requirement and lowers the appraisal based on a failed service call. When all three calls fail, the gate instead tells the user that the subject is not a real truck, concealing the infrastructure failure.
+- **Suggested fix:** Represent extraction failure separately from an actual negative truck observation. Exclude failed records from coverage, condition, identity, and retrieval selection; return an explicit upstream/service error when failures prevent assessment. Preserve genuine non-truck observations for the subject gate. Add pipeline tests for complete failure and a mixture of valid views and failures, asserting that failures cannot alter condition or satisfy coverage.
 
-```javascript
-if (!response.ok) throw new Error(data.message || `The analysis service returned ${response.status}.`);
-```
+### 5. Reported confidence and range ignore thin lookup support and adverse visual spread
 
-So "Unsupported photo type: …" and every pipeline error render as a generic status-code message. Read `data.detail || data.message`.
+- **Severity:** Major
+- **File and line reference:** `backend/pricing.py:95–101,206–229`; `backend/pricing_formula.py:79–81,105–109,124–132,147–150`.
+- **What's wrong and why it matters:** Every exact lookup receives `confidence="high"` regardless of its sample count. `compute_price` maps that to 1.0; `sample_size` is only displayed. Consequently a single listing can produce 99% confidence and an approximately ±10.35% range when the VLM is confident, contrary to the comment that thin buckets should reduce confidence. This affects 251 of the current 538 buckets. Additionally, when the lookup is used and its median price agrees with visual retrieval, `max(base_confidence_score, visual_confidence)` prevents a broad visual neighborhood from lowering confidence or widening the range. In a controlled probe, changing visual relative IQR from 0.0 to 1.8 lowered visual confidence from 1.0 to 0.357, but the returned confidence remained 0.99 and the range remained exactly `[37204.75, 45795.25]`. The headline therefore communicates precision unsupported by the observed comps.
+- **Suggested fix:** Incorporate lookup sample support into the base-confidence calculation and propagate adverse neighborhood spread/consistency into headline uncertainty even when the lookup supplies the point estimate. Keep the formula simple, but ensure a single comp cannot imply maximal price confidence and a materially wider comparable-price distribution widens the range or lowers confidence. Add tests that vary sample count and price spread independently while holding identity and median price constant.
 
-**Severity:** Major
+## Minor
 
----
+### 6. An empty but present shard prevents otherwise valid shards from merging
 
-### Minor — 502 leaks raw internal exception text
+- **Severity:** Minor
+- **File and line reference:** `backend/build_dino_index.py:124–126,144–152,179–192,214`.
+- **What's wrong and why it matters:** A shard with no assigned listings, or whose image downloads all fail, is saved as an array of shape `(0, 0)` with an empty metadata list. Merge appends it alongside nonempty arrays of shape `(n, 768)` and calls `np.concatenate`, which raises a dimension-mismatch `ValueError`. `--allow-missing-shards` does not help because both files exist. A mocked merge of one valid `(1, 768)` shard and one `(0, 0)` shard reproduced the failure before any index write. Thus a recoverable empty slice blocks use of the completed work.
+- **Suggested fix:** Validate each shard's row count against its metadata and skip a validated empty shard during concatenation, or persist a known embedding dimension for empty arrays. Retain the explicit error when no usable vectors remain. Test valid-plus-empty shards with and without the missing-shard option.
 
-`detail=f"Pipeline error: {e}"` in `main.py`. Fine for a hackathon LAN, but log server-side and return something generic.
+### 7. Extraction validation accepts malformed identity fields that crash downstream fusion
 
-**Severity:** Minor
+- **Severity:** Minor
+- **File and line reference:** `backend/vision_extract.py:119–142`; `backend/fusion.py:46–50`; `backend/pricing.py:54–55,86–87`.
+- **What's wrong and why it matters:** The parser checks field presence, enums, booleans, damage, and confidence, but never validates the types of `make`, `model`, `year_estimate`, or `trim`. For example, an otherwise valid response with `model: ["CASCADIA"]` passes `_parse_and_validate` and then raises `TypeError: unhashable type: 'list'` in fusion. Numeric identity fields can instead fail later string normalization. Because the parser already accepted the record, its intended malformed-output retry/fallback cannot handle this; a single malformed model response can fail the entire submission.
+- **Suggested fix:** Validate the complete response shape, including a top-level object and string types for all identity fields, before returning an extraction. Raise `ExtractionError` for violations so the existing retry mechanism handles them, and route exhausted retries through the explicit failure handling recommended in Major 4. Add cases for list/numeric identity fields and non-object JSON.
 
----
+## Positive notes
 
-### Minor — unauthenticated, CORS-`*` endpoint that spends OpenAI credits
+- Pricing is computed from actual listing records separately from vision extraction, with the chosen price source and comparable listings exposed in the breakdown.
+- Retrieval fusion deduplicates a listing within each view before applying recurrence rewards. Tests verify that duplicate image matches cannot masquerade as multiple supporting views.
+- Weighted-median pricing and weak-neighbor rejection reduce dependence on a single extreme nearest match; the tests cover an expensive outlier explicitly.
+- The lookup path survives ordinary Python retrieval exceptions, with tests for both a missing index and an unexpected retrieval error. That fallback remains valuable once the native-runtime issue is resolved.
+- Index saving checks vector/metadata counts, shard merging checks source hashes, and deterministic test embeddings avoid live model downloads.
+- Recomputed base-price bucket statistics match the current clean dataset, and the checked-in clean listings have unique IDs and no auction flags.
 
-Anyone who can reach the backend can trigger up to 7 vision calls per request with unbounded photo/video sizes (`await video.read()` buffers the whole video in memory, and `uploads/` grows forever). Acceptable for the demo; don't expose it beyond localhost/LAN.
+## Questions for the author
 
-**Severity:** Minor
-
----
-
-### Minor — leftover debug `print` in `pipeline.py`
-
-Line 52 (`[dup-check]` Hamming-distance print) runs on every submission.
-
-**Severity:** Minor
-
----
-
-### Minor — real trucks with unidentifiable make can be refused as "not a truck"
-
-The prompt tells the model to lower confidence when make/model is unknown; `evaluate` counts any `confidence < 0.3` as a not-truck vote, so an obscure-but-real truck can get the insulting refusal message rather than `needs_more_info`. The two thresholds (0.2 prompt guidance vs 0.3 vote cutoff) also overlap awkwardly.
-
-**Severity:** Minor
-
----
-
-### Minor — near-duplicate threshold of 12/64 bits risks false positives
-
-aHash distances between genuinely different angles of the same truck (especially sky/pavement-dominated frames) can land under 12. Failure mode: rejecting a judge's legitimate photo.
-
-**Severity:** Minor
-
----
-
-### Minor — nearest-year fallback has no distance cap
-
-In `pricing.py`, a 1998 query against a family whose only comps are 2020–2024 silently uses a 2020s price with "medium" confidence. Cap the year distance (e.g. ±4) before degrading to the all-years or make-level fallback.
-
-**Severity:** Minor
-
----
-
-### Minor — `_MODEL_FAMILY_PATTERNS` duplicated
-
-Copy-pasted between `scraper/clean_data.py` and `backend/pricing.py`. Any addition on the scraper side that isn't mirrored silently breaks bucket lookups. Move to a shared module or into `data/` alongside the JSON.
-
-**Severity:** Minor
-
----
-
-### Minor — `notes` is dead
-
-`pricing_formula.compute_price` initializes `notes = []` and never appends; the frontend faithfully renders nothing. PLAN 4d says low confidence should "surface a warning in the UI" — this is the intended vehicle for it.
-
-**Severity:** Minor
-
----
-
-### Minor — image bytes always declared `image/jpeg` in `_image_content`
-
-API accepts PNG/WebP uploads. OpenAI sniffs content so it works, but it's a latent mismatch.
-
-**Severity:** Minor
-
----
-
-### Minor — no unit tests for pure logic
-
-`fusion.py`, `limits.evaluate`, `pricing.base_price_lookup`, and `pricing_formula.compute_price` are deterministic and dependency-free — ideal test targets — yet the only test file is a manual, API-key-requiring extraction script.
-
-**Severity:** Minor
-
----
-
-### Minor — demo logistics
-
-Predict endpoint hardcoded to `http://127.0.0.1:8000` in `index.html`; `getUserMedia` requires a secure context — capture won't work from a judge's phone over plain LAN HTTP. TF.js/COCO-SSD load from CDN; manual-snap fallback covers that.
-
-**Severity:** Minor
-
----
-
-## (b) Invariant violations (per PLAN.md / AGENTS.md)
-
-### Major — invariant violation: single-comp buckets produce maximum confidence and the tightest price range
-
-PLAN's core principle is "a lone number reads as false precision" and 4b requires range width to respond to comps support. But `base_price_lookup` assigns `confidence: "high"` on any exact match regardless of `sample_size`, and `pricing_formula` maps that straight to 1.0 — while its own comment claims the opposite:
-
-```python
-# Overall confidence folds in both how sure the vision extraction was
-# AND how well-supported the base-price match is (Phase 4d) — a
-# confident make/model read against a single-comp bucket shouldn't
-# report as confidently as one backed by a dozen real listings.
-base_confidence_score = BASE_MATCH_CONFIDENCE.get(base["confidence"], 0.4)
-```
-
-`sample_size` is returned but never used, and the bucket's `min`/`max` spread is ignored for range width. With 327 of 538 buckets at ≤2 comps, the most common exact-match outcome is one listing's asking price presented at the highest confidence the system can express.
-
-**Severity:** Major (invariant violation)
-
----
-
-### Major — invariant violation: the "not a truck" refusal renders as a crash
-
-PLAN Phase 6 requires refusal states to "look deliberate (not a crash/broken page)." The backend returns `{"status": "not_a_truck", ...}`, but `renderBackendResponse` only branches on `priced` and `needs_more_info`; everything else goes to `renderErrorResult`, so the flagship "knows its limits" moment displays as "Something went wrong" with "Try submitting again" (guaranteed same refusal + more API calls). `frontend/AGENTS.md` omits `not_a_truck` from the response-shape contract.
-
-**Severity:** Major (invariant violation)
-
----
-
-### Minor — invariant violation (or stale spec): annotated damage photos returned in response body
-
-PLAN Phase 5 says annotated boxed photos are a local side effect only — "not returned in the response body." Current code mounts `/results` and returns `annotated_damage_photos` URLs in the breakdown (deliberate commit). Update PLAN.md or treat as doc drift; note `results/` is publicly served while submission IDs are UUIDs.
-
-**Severity:** Minor (invariant violation / stale spec)
-
----
-
-### Observation — DINOv2/FAISS path unbuilt
-
-Phases 1e, 2b-DINO, retrieval fusion, and 4b Option A are unchecked. Shipped pricing is the hand-tuned `(make, model, year)` lookup PLAN describes as "fallback and cross-check, not the only base-price source." Demo pitch about visual retrieval describes code that doesn't exist yet. Data buckets still use plain mean (median/trim not done per data-expansion notes).
-
-**Not a code bug; scope/plan gap.**
-
----
-
-## Invariants verified as upheld
-
-- VLM never emits a price
-- Session video stored, never enters pipeline
-- Capture camera-only, no upload picker
-- Interior views never prompted or required
-- Headline output is range + confidence; point estimate in breakdown only
-- Auction listings excluded; scraper keeps 2.5s delay
-- `results/` and `uploads/` gitignored
-
----
-
-## Data snapshot (at review time)
-
-- ~1,958 clean listings, ~538 `(make, model_family, year)` buckets
-- 327 buckets with `count ≤ 2` (sparse comps remain a accuracy risk)
-
----
-
-## Verdict
-
-**Needs changes before merge** — the API-failure→"not a truck" conflation, the unrendered `not_a_truck` state, and the single-comp/max-confidence pricing are all demo-visible; each is a small, contained fix.
+- Is the smaller committed DINO index intentional? Its metadata covers 375 listings against 1,958 current clean listings, and one indexed ID is absent from the clean set. The README says to rebuild after dataset changes, while the new merge option permits intentional partial coverage. Define the expected coverage/source version so an intentional partial index can be distinguished from a stale artifact.
+- Which deployment platform is the target, and does its installed Torch/FAISS pair pass a combined native smoke test? The process-abort finding above is confirmed on this Mac; another platform still needs its own verification.
+- Are request quotas, upload limits, and video retention enforced outside this repository? If so, document their actual limits and ownership; the API currently provides none of those safeguards itself.
+- Are parallel scraper processes against the same output still a supported workflow? `scraper/scrape_truckpaper.py:198–203,229–230,312–319` advertises it, but each process loads and rewrites the entire shared progress JSON without coordination. One process can overwrite another's progress, and a concurrent reader can encounter a partial write. Separate per-worker progress files or serialized checkpoint writes would be needed for reliable shared resume state.
+- What held-out examples calibrate the headline confidence and price range? Current tests verify arithmetic and wiring, but do not establish empirical range coverage for unfamiliar trucks. This is especially relevant because make/model/year buckets omit mileage and configuration differences.
