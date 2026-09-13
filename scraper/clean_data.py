@@ -71,7 +71,7 @@ def clean():
 
     seen_ids = set()
     cleaned = []
-    dropped = {"missing_price": 0, "missing_image": 0, "bad_year": 0, "duplicate": 0}
+    dropped = {"missing_price": 0, "missing_image": 0, "bad_year": 0, "duplicate": 0, "relist": 0}
 
     with RAW_PATH.open() as f:
         for line in f:
@@ -96,6 +96,27 @@ def clean():
             r["model_family"] = model_family
             r["year"] = int(year)
             cleaned.append(r)
+
+    # Relist detection: no VIN is scraped, so fall back to fuzzy matching on
+    # (title, price, mileage, location) — but only when mileage is a real
+    # nonzero value. Two different used trucks matching on every one of
+    # those fields, including the exact odometer reading, is effectively
+    # impossible; that combination is the same physical listing under a new
+    # listing_id (a relist). Zero/missing mileage is excluded because
+    # dealers commonly list several identical *new* trucks (same trim,
+    # price, lot) as distinct listings — that's real inventory, not a dupe.
+    seen_signatures = set()
+    deduped = []
+    for r in cleaned:
+        mileage = r.get("mileage")
+        if mileage:
+            signature = (r.get("title"), r.get("price"), mileage, r.get("location"))
+            if signature in seen_signatures:
+                dropped["relist"] += 1
+                continue
+            seen_signatures.add(signature)
+        deduped.append(r)
+    cleaned = deduped
 
     with CLEAN_PATH.open("w") as f:
         for r in cleaned:

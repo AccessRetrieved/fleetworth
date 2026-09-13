@@ -36,6 +36,31 @@ SEARCH_KEYWORDS = [
     "Box Truck",
     "Service Truck",
     "Freightliner M2",
+    # Added to thicken model families that only showed up incidentally (a
+    # handful of hits each) from the generic category keywords above —
+    # each of these is a real, common truck that deserves its own comps
+    # bucket instead of sitting at 1-10 comps.
+    "Isuzu NPR",
+    "International DuraStar",
+    "Kenworth T880",
+    "Western Star",
+    "Mack Granite",
+    # Year-backfill pass: DINO's visual similarity can't distinguish a
+    # truck's age (a 2012 and 2020 Cascadia look nearly identical), but
+    # price differs hugely by year — so pricing needs same-model comps
+    # spread across years, not just clustered around recent inventory.
+    # TruckPaper has no year-range URL param (checked); putting the year
+    # first in the free-text keyword strongly biases results toward it.
+    "2010 Freightliner Cascadia",
+    "2012 Freightliner Cascadia",
+    "2016 Freightliner Cascadia",
+    "2013 Kenworth T680",
+    "2016 Kenworth T680",
+    "2018 Kenworth T680",
+    "2008 Volvo VNL",
+    "2014 Volvo VNL",
+    "2017 Volvo VNL",
+    "2009 Freightliner M2",
 ]
 
 # Safety net: reject any listing whose category text looks like a pickup,
@@ -43,7 +68,7 @@ SEARCH_KEYWORDS = [
 PICKUP_CATEGORY_MARKERS = ("pickup", "ton pickup")
 
 BASE_URL = "https://www.truckpaper.com/listings/for-sale/trucks-and-trailers/all"
-PAGES_PER_KEYWORD = 12  # ~28 listings/page; yield varies (some pages are auction-heavy)
+PAGES_PER_KEYWORD = 15  # ~28 listings/page; yield varies (some pages are auction-heavy)
 DELAY_SECONDS = 2.5  # polite rate limit between page loads
 OUTPUT_PATH = Path(__file__).resolve().parent.parent / "data" / "truckpaper_raw.jsonl"
 
@@ -133,7 +158,13 @@ def parse_card(wrapper) -> dict | None:
     }
 
 
-def scrape():
+def scrape(keywords: list[str] | None = None):
+    """keywords: override SEARCH_KEYWORDS (e.g. to run a subset in parallel
+    against the same output file — safe because seen_ids dedup means two
+    concurrent runs on disjoint keyword sets won't double-write a listing
+    unless the same one happens to surface under both, which clean_data.py's
+    own dedupe pass catches anyway)."""
+    keywords = keywords if keywords is not None else SEARCH_KEYWORDS
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     seen_ids: set[str] = set()
 
@@ -153,7 +184,7 @@ def scrape():
         context = browser.new_context(user_agent=USER_AGENT, viewport={"width": 1400, "height": 1000})
         page = context.new_page()
 
-        for keyword in SEARCH_KEYWORDS:
+        for keyword in keywords:
             for page_num in range(1, PAGES_PER_KEYWORD + 1):
                 url = f"{BASE_URL}?Keywords={keyword.replace(' ', '+')}&Page={page_num}"
                 try:
@@ -195,4 +226,10 @@ def scrape():
 
 
 if __name__ == "__main__":
-    scrape()
+    import sys
+
+    # Optional: pass keywords as args to run a subset (e.g. in a parallel
+    # session alongside another run against the same output file), one
+    # keyword per arg — quote multi-word ones: `uv run python
+    # scrape_truckpaper.py "2010 Freightliner Cascadia" "2012 Freightliner Cascadia"`
+    scrape(sys.argv[1:] or None)
