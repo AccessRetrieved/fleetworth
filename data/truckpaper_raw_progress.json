@@ -80,39 +80,35 @@
     "done": true
   },
   "Ford Transit": {
-    "pages_done": 58,
-    "done": true
+    "pages_done": 53,
+    "done": false
   },
-  "Ram ProMaster": {
-    "pages_done": 11,
-    "done": true
+  "Kenworth": {
+    "pages_done": 61,
+    "done": false
   },
-  "Stake Bed Truck": {
-    "pages_done": 20,
-    "done": true
-  },
-  "Roll Off Truck": {
-    "pages_done": 23,
-    "done": true
-  },
-  "Kenworth T700": {
+  "T700": {
     "pages_done": 1,
     "done": true
   },
-  "Sterling LT9500": {
+  "Sterling": {
+    "pages_done": 45,
+    "done": true
+  },
+  "LT9500": {
     "pages_done": 4,
     "done": true
   },
-  "Isuzu FXR": {
-    "pages_done": 93,
+  "Isuzu": {
+    "pages_done": 48,
     "done": true
   },
-  "Sweeper Truck": {
-    "pages_done": 6,
+  "FXR": {
+    "pages_done": 1,
     "done": true
   },
-  "Fuel Truck": {
-    "pages_done": 20,
+  "Roll": {
+    "pages_done": 22,
     "done": false
   }
 }
