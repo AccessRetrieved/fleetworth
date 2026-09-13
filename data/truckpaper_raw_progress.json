@@ -30,5 +30,21 @@
   "Mack Pinnacle": {
     "pages_done": 29,
     "done": true
+  },
+  "Ford F650": {
+    "pages_done": 16,
+    "done": true
+  },
+  "Ford F750": {
+    "pages_done": 38,
+    "done": true
+  },
+  "GMC Topkick": {
+    "pages_done": 10,
+    "done": true
+  },
+  "Chevrolet Kodiak": {
+    "pages_done": 55,
+    "done": false
   }
 }
