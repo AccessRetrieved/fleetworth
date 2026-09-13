@@ -126,5 +126,17 @@
   "Fuel": {
     "pages_done": 58,
     "done": false
+  },
+  "Kenworth T700": {
+    "pages_done": 1,
+    "done": true
+  },
+  "Sterling LT9500": {
+    "pages_done": 4,
+    "done": true
+  },
+  "Isuzu FXR": {
+    "pages_done": 1,
+    "done": false
   }
 }
