@@ -2,14 +2,21 @@
 Phase 1c — clean the raw TruckPaper scrape and build the base-price lookup.
 
 Reads data/truckpaper_raw.jsonl, normalizes make/model naming, drops bad
-rows, dedupes, and buckets by (make, model_family, year) -> average price.
+rows, dedupes, and buckets by (make, model_family, year) -> base price.
 
 Outputs:
   data/truckpaper_clean.jsonl — cleaned per-listing records
-  data/base_prices.json       — {make: {model_family: {year: {avg, min, max, count}}}}
+  data/base_prices.json       — {make: {model_family: {year: {price, avg, min, max, count}}}}
+                                price = bucket base price (bucket_base_price), avg = plain mean
+
+Usage:
+    uv run python clean_data.py                     # clean the raw scrape, then build base_prices.json
+    uv run python clean_data.py --base-prices-only  # rebuild base_prices.json from the existing clean file
 """
+import argparse
 import json
 import re
+import statistics
 from collections import defaultdict
 from pathlib import Path
 
@@ -63,6 +70,54 @@ def normalize_make_model(make: str, model: str) -> tuple[str, str]:
             break
 
     return make, family
+
+
+# Lookup bucket base price: median once a bucket has this many listings,
+# otherwise the mean (benchmark in backend/pricing.py, BUCKET_MEDIAN_MIN_LISTINGS).
+BUCKET_MEDIAN_MIN_LISTINGS = 5
+
+
+def bucket_base_price(prices: list[float]) -> float:
+    prices = [float(p) for p in prices]
+    if len(prices) >= BUCKET_MEDIAN_MIN_LISTINGS:
+        return round(statistics.median(prices), 2)
+    return round(sum(prices) / len(prices), 2)
+
+
+def build_base_prices(listings) -> dict:
+    """Bucket cleaned listings by (make, model_family, year) -> price stats."""
+    buckets: dict[str, dict[str, dict[int, list[float]]]] = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    for r in listings:
+        buckets[r["make"]][r["model_family"]][r["year"]].append(r["price"])
+
+    base_prices = {}
+    for make, models in buckets.items():
+        base_prices[make] = {}
+        for model_family, years in models.items():
+            base_prices[make][model_family] = {}
+            for year, prices in years.items():
+                base_prices[make][model_family][str(year)] = {
+                    "price": bucket_base_price(prices),
+                    "avg": round(sum(prices) / len(prices), 2),
+                    "min": min(prices),
+                    "max": max(prices),
+                    "count": len(prices),
+                }
+    return base_prices
+
+
+def write_base_prices(base_prices: dict) -> None:
+    with BASE_PRICES_PATH.open("w") as f:
+        json.dump(base_prices, f, indent=2, sort_keys=True)
+    n_buckets = sum(len(y) for m in base_prices.values() for y in m.values())
+    print(f"Wrote {BASE_PRICES_PATH} — {len(base_prices)} makes, {n_buckets} (make, model, year) buckets")
+
+
+def rebuild_base_prices() -> None:
+    """base_prices.json from the existing truckpaper_clean.jsonl, without re-cleaning the raw scrape."""
+    with CLEAN_PATH.open(encoding="utf-8") as f:
+        listings = [json.loads(line) for line in f if line.strip()]
+    write_base_prices(build_base_prices(listings))
 
 
 def clean():
@@ -136,32 +191,16 @@ def clean():
         for r in cleaned:
             f.write(json.dumps(r) + "\n")
 
-    # Bucket by (make, model_family, year) -> price stats.
-    buckets: dict[str, dict[str, dict[int, list[float]]]] = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-    for r in cleaned:
-        buckets[r["make"]][r["model_family"]][r["year"]].append(r["price"])
-
-    base_prices = {}
-    for make, models in buckets.items():
-        base_prices[make] = {}
-        for model_family, years in models.items():
-            base_prices[make][model_family] = {}
-            for year, prices in years.items():
-                base_prices[make][model_family][str(year)] = {
-                    "avg": round(sum(prices) / len(prices), 2),
-                    "min": min(prices),
-                    "max": max(prices),
-                    "count": len(prices),
-                }
-
-    with BASE_PRICES_PATH.open("w") as f:
-        json.dump(base_prices, f, indent=2, sort_keys=True)
-
     print(f"Cleaned {len(cleaned)} listings (dropped: {dropped})")
     print(f"Wrote {CLEAN_PATH}")
-    n_buckets = sum(len(y) for m in base_prices.values() for y in m.values())
-    print(f"Wrote {BASE_PRICES_PATH} — {len(base_prices)} makes, {n_buckets} (make, model, year) buckets")
+    write_base_prices(build_base_prices(cleaned))
 
 
 if __name__ == "__main__":
-    clean()
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--base-prices-only", action="store_true",
+                        help="rebuild data/base_prices.json from the existing truckpaper_clean.jsonl")
+    if parser.parse_args().base_prices_only:
+        rebuild_base_prices()
+    else:
+        clean()

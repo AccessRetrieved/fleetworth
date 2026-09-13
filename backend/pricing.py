@@ -2,7 +2,8 @@
 Phase 4a — base price lookup.
 
 Loads data/base_prices.json (built by scraper/clean_data.py, bucketed by
-make -> model_family -> year -> {avg, min, max, count}) and exposes
+make -> model_family -> year -> {price, avg, min, max, count}, where price is
+the bucket base price: median at BUCKET_MEDIAN_MIN_LISTINGS+ listings, else mean) and exposes
 base_price_lookup(make, model, year) -> result dict.
 
 Fallback order, per PLAN.md Phase 4d:
@@ -19,6 +20,7 @@ identified make/model/year (PLAN.md Phase 4b).
 import json
 import math
 import re
+import statistics
 from pathlib import Path
 
 from fusion import RETRIEVAL_MIN_SIMILARITY
@@ -54,6 +56,14 @@ VISUAL_TOP_COMPS_SHOWN = 5  # closest comps echoed back in the breakdown for exp
 # median. pricing_formula derives the displayed price range from a pair of them.
 VISUAL_PRICE_QUANTILES = (0.05, 0.10, 0.15, 0.20, 0.80, 0.85, 0.90, 0.95)
 
+# Lookup bucket base price. The plain mean is pulled up by occasional extreme
+# listings (confident-identity held-out median predicted/real 1.036). The median
+# fixes that where a bucket has enough listings; 3-4 listing buckets did better
+# with the mean, and 1-2 listing buckets are identical either way
+# (eval_lookup_aggregation.py: median predicted/real 1.004, MdAPE 22.2% -> 21.4%,
+# no loss in +/-20/30% accuracy or range coverage).
+BUCKET_MEDIAN_MIN_LISTINGS = 5
+
 # Year-aware visual pricing. DINOv2 sees a 2008 and a 2018 truck of the same
 # body style as near-identical, but they're priced a decade apart.
 DEPRECIATION_PER_YEAR = 0.088  # fitted log(price) vs model-year slope over the 375 comps
@@ -84,12 +94,27 @@ def parse_year_estimate(year_estimate) -> tuple[float, float] | None:
     return (min(years) + max(years)) / 2, (max(years) - min(years)) / 2
 
 
+def aggregate_bucket_prices(prices: list[float]) -> float:
+    """A lookup bucket's base price: the median once the bucket has
+    BUCKET_MEDIAN_MIN_LISTINGS listings, otherwise the mean. Mirrors
+    scraper/clean_data.bucket_base_price, which writes it into base_prices.json."""
+    prices = [float(p) for p in prices]
+    if len(prices) >= BUCKET_MEDIAN_MIN_LISTINGS:
+        return round(statistics.median(prices), 2)
+    return round(sum(prices) / len(prices), 2)
+
+
+def _bucket_price(bucket: dict) -> float:
+    """The bucket's base price; tables built before "price" existed carry only the mean."""
+    return bucket.get("price", bucket["avg"])
+
+
 def _global_average() -> float:
     all_prices = []
     for models in _BASE_PRICES.values():
         for years in models.values():
             for bucket in years.values():
-                all_prices.append(bucket["avg"] * bucket["count"])
+                all_prices.append(_bucket_price(bucket) * bucket["count"])
     total_count = sum(
         bucket["count"]
         for models in _BASE_PRICES.values()
@@ -112,11 +137,11 @@ def base_price_lookup(make: str, model: str, year) -> dict:
         year_bucket = make_buckets[model_family].get(str(year_int))
         if year_bucket:
             return {
-                "base_price": year_bucket["avg"],
+                "base_price": _bucket_price(year_bucket),
                 "confidence": "high",
                 "match_level": "exact",
                 "sample_size": year_bucket["count"],
-                "relative_spread": (year_bucket["max"] - year_bucket["min"]) / max(year_bucket["avg"], 1),
+                "relative_spread": (year_bucket["max"] - year_bucket["min"]) / max(_bucket_price(year_bucket), 1),
                 "notes": f"Exact match: {make_key} {model_family} {year_int}",
             }
 
@@ -126,18 +151,18 @@ def base_price_lookup(make: str, model: str, year) -> dict:
         nearest_year = min(years_available.keys(), key=lambda y: abs(int(y) - year_int))
         nearest_bucket = years_available[nearest_year]
         return {
-            "base_price": nearest_bucket["avg"],
+            "base_price": _bucket_price(nearest_bucket),
             "confidence": "medium",
             "match_level": "nearest_year",
             "sample_size": nearest_bucket["count"],
-            "relative_spread": (nearest_bucket["max"] - nearest_bucket["min"]) / max(nearest_bucket["avg"], 1),
+            "relative_spread": (nearest_bucket["max"] - nearest_bucket["min"]) / max(_bucket_price(nearest_bucket), 1),
             "notes": f"No {year_int} comps for {make_key} {model_family}; used nearest year {nearest_year}",
         }
 
     # 3. (make, model_family) averaged across all years
     if make_buckets and model_family in make_buckets:
         years_available = make_buckets[model_family]
-        prices = [b["avg"] * b["count"] for b in years_available.values()]
+        prices = [_bucket_price(b) * b["count"] for b in years_available.values()]
         counts = [b["count"] for b in years_available.values()]
         avg = sum(prices) / sum(counts)
         return {
@@ -153,7 +178,7 @@ def base_price_lookup(make: str, model: str, year) -> dict:
         prices, counts = [], []
         for years in make_buckets.values():
             for b in years.values():
-                prices.append(b["avg"] * b["count"])
+                prices.append(_bucket_price(b) * b["count"])
                 counts.append(b["count"])
         avg = sum(prices) / sum(counts)
         return {

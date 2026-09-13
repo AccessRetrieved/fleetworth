@@ -120,7 +120,8 @@ def lookup_without(item: dict, members: dict, leaky: bool):
         if listing_id != item["listing_id"] and (leaky or (title, price) != twin)
     ]
     if keep:
-        years[year] = {"avg": sum(keep) / len(keep), "min": min(keep), "max": max(keep), "count": len(keep)}
+        years[year] = {"avg": sum(keep) / len(keep), "price": pricing.aggregate_bucket_prices(keep),
+                       "min": min(keep), "max": max(keep), "count": len(keep)}
     else:
         del years[year]
         if not years:

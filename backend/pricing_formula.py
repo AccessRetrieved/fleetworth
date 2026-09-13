@@ -131,7 +131,10 @@ def compute_price(extraction: dict, visual: dict | None = None) -> dict:
     base_confidence_score = BASE_MATCH_CONFIDENCE.get(base["confidence"], 0.4)
     # Match quality and sample support are separate limits. Twelve listings
     # reach full support; one listing can support at most 50% confidence.
-    support = min(1.0, 0.5 + max(0, base["sample_size"] - 1) / 22)
+    # A make missing from the table falls back to the global average with no
+    # bucket (sample_size None): that is no lookup support.
+    sample_size = base.get("sample_size") or 0
+    support = min(1.0, 0.5 + max(0, sample_size - 1) / 22)
     base_confidence_score = min(base_confidence_score, support)
     lookup_spread = max(0.0, base.get("relative_spread", 0.0))
     base_confidence_score /= 1 + lookup_spread
@@ -147,7 +150,7 @@ def compute_price(extraction: dict, visual: dict | None = None) -> dict:
     exact_price_wins = exact_match is not None and not exact_match.get("conflict")
 
     notes = []
-    if base["sample_size"] < 3 and not exact_price_wins:
+    if sample_size < 3 and not exact_price_wins:
         # About make/model/year bucket support; an exact image match isn't
         # priced from that bucket.
         notes.append("Few matching listings are available, so the estimate has a wider range.")
