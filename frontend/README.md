@@ -4,9 +4,11 @@ Fleetworth is a 54 Hackathon FA26 prototype that estimates a used truck's price 
 
 ## What this frontend does
 
-The user opens the live camera, starts a continuous recording session, then walks around the truck with a loose guide overlaid on the camera view: wide view, front, sides, rear, tires, and any other useful exterior view. The guide appears only while recording and offers its next suggestion only after a photo is successfully saved, so it never runs ahead while the camera is pointed away. These prompts are still unverified recommendations, not capture slots, and advancing does not claim that an angle was recognized or completed.
+The app opens on a live camera-ready screen. The user starts one guided walkaround: a session video records for verification while the app auto-snaps exterior photos. Guidance is loose (wider view, sides, tires, damage, hold steady) and is not a named-angle checklist. Coverage is described qualitatively rather than as a required photo count.
 
-During the recording, the app collects **3–7 JPEG exterior photos**, waiting about six seconds of clear framing between automatic captures so the user can move. The session can be paused and resumed; paused time is excluded from the recording and no photos are snapped while paused. Exterior photos feed future extraction and pricing; interior/cab photos are out of scope. The continuous session video is retained separately as a live-capture/authenticity record, shown for review after recording, and is not analysed for the price.
+During recording, the app typically collects several JPEG exterior photos, waiting about six seconds of clear framing between automatic captures. The session can be paused and resumed; paused time is excluded from the recording. Exterior photos feed extraction and pricing; interior/cab photos are out of scope. The session video is an authenticity record only and is not analysed for the price.
+
+After Stop, the user reviews captured views and submits for a **price range** with a confidence label, or a needs-more-information recovery flow. Technical errors stay visually separate from appraisal limits.
 
 COCO-SSD runs locally in TensorFlow.js to check broad framing. It accepts `truck`, `car`, or `bus` detections because pickup trucks are not classified consistently. It warns when the vehicle is absent, clipped, too small, poorly lit, or blurry. When the detector cannot load, auto-snap is disabled and the user can manually snap frames after local sharpness and lighting checks.
 
@@ -16,7 +18,7 @@ Captured media stays in browser memory until the user submits. `window.Fleetwort
 - `photos`: repeated exterior JPEG fields, named `capture-<n>.jpg`
 - `video`: the original browser-recorded session video
 
-`data-predict-endpoint` on the page body points at the FastAPI `POST /predict` route (default `http://127.0.0.1:8000/predict`); Submit POSTs the form data there and also dispatches the `fleetworth:capture-ready` event. If the attribute is emptied, Submit instead shows an in-browser “Evidence package ready” handoff state. Priced responses render the price range and confidence first, followed by response `notes` and the explainable breakdown. `needs_more_info` responses stay distinct from failures and lead into a focused recapture.
+`data-predict-endpoint` on the page body points at the FastAPI `POST /predict` route (default `http://127.0.0.1:8000/predict`); Estimate truck value POSTs the form data there and also dispatches the `fleetworth:capture-ready` event. If the attribute is emptied, submit instead shows an in-browser “Evidence package ready” handoff state. Priced responses render a range and confidence label first, then identified vehicle, visible condition, and comparable-market explanation. `needs_more_info` is an amber recovery flow, not a technical failure.
 
 ## Run locally
 

@@ -2,84 +2,109 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#07111f" />
-    <title>Fleetworth — Live Truck Capture</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#071018" />
+    <title>Fleetworth — Truck appraisal</title>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
   </head>
-  <body data-predict-endpoint="http://127.0.0.1:8000/predict">
-    <main class="app-shell">
+  <body data-predict-endpoint="http://10.194.197.194:8000/predict">
+    <main class="app-shell" data-screen="ready">
       <header class="app-header">
         <a class="brand" href="/" aria-label="Fleetworth home"><span class="brand-mark">FW</span>Fleetworth</a>
-        <div id="sessionState" class="session-state"><span class="state-dot"></span>Ready to capture</div>
+        <div class="header-tools">
+          <label class="camera-picker" for="cameraSelect"><span>Camera</span><select id="cameraSelect" disabled><option value="">Detecting cameras…</option></select></label>
+          <div id="sessionState" class="session-state"><span class="state-dot"></span>Camera ready</div>
+        </div>
       </header>
 
-      <div class="workspace">
-        <section class="capture-panel" aria-labelledby="captureTitle">
-          <div class="capture-heading">
-            <h1 id="captureTitle" class="step-title"><span class="step-index">1</span> Film Truck</h1>
-            <div class="recording-readout"><span id="recordingTime">00:00</span><small>session</small></div>
-          </div>
-
-          <div class="capture-stage">
+      <section class="camera-experience" aria-label="Live truck camera">
+        <div class="capture-stage">
+          <div class="preview">
+            <video id="cameraPreview" autoplay playsinline muted></video>
+            <canvas id="detectionOverlay" aria-hidden="true"></canvas>
+            <div class="framing-guide" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            <div id="captureFlash" class="capture-flash" aria-hidden="true"></div>
+            <div id="cameraMessage" class="camera-message" role="status" aria-live="polite">Requesting camera access…</div>
+            <div id="frameStatus" class="frame-status is-loading" role="status" aria-live="polite"><span class="status-dot"></span><span id="frameStatusText">Loading framing assistant…</span></div>
+            <div id="recordingBadge" class="recording-badge is-hidden"><span></span>Capturing</div>
             <div id="guideOverlay" class="guide-overlay" role="status" aria-live="polite" hidden>
-              <p id="guideOverlayStep" class="guide-overlay-step">Suggestion 1 of 6</p>
-              <strong id="guideOverlayTitle" class="guide-overlay-title">Start wide</strong>
-              <small id="guideOverlayInstruction" class="guide-overlay-instruction">Frame the whole truck from a few steps back.</small>
-              <p id="guideOverlayTip" class="guide-overlay-tip">Keep all body edges inside the guide.</p>
-              <ol id="guideDots" class="guide-dots" aria-hidden="true"></ol>
+              <p id="guideOverlayStep" class="guide-overlay-step">Guidance</p>
+              <strong id="guideOverlayTitle" class="guide-overlay-title">Start with a wider view of the truck.</strong>
+              <small id="guideOverlayInstruction" class="guide-overlay-instruction">Walk around the truck at a steady pace.</small>
             </div>
-            <section class="preview" aria-label="Live truck camera preview">
-              <video id="cameraPreview" autoplay playsinline muted></video>
-              <canvas id="detectionOverlay" aria-hidden="true"></canvas>
-              <div class="framing-guide" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-              <div id="captureFlash" class="capture-flash" aria-hidden="true"></div>
-              <div id="cameraMessage" class="camera-message" role="status" aria-live="polite">Requesting camera access…</div>
-              <div id="frameStatus" class="frame-status is-loading" role="status" aria-live="polite"><span class="status-dot"></span><span id="frameStatusText">Loading framing assistant…</span></div>
-              <div id="recordingBadge" class="recording-badge is-hidden"><span></span>Recording</div>
-            </section>
+            <p id="captureToast" class="capture-toast" role="status" aria-live="polite" hidden>View captured.</p>
           </div>
-
-          <div class="camera-controls" aria-label="Camera controls">
-            <label class="camera-picker" for="cameraSelect"><span>Camera</span><select id="cameraSelect" disabled><option value="">Detecting cameras…</option></select></label>
-            <div class="session-buttons">
-              <button id="startButton" class="button button-primary" type="button" disabled>Start session</button>
-              <button id="pauseButton" class="button button-secondary" type="button" aria-pressed="false" disabled>Pause</button>
-              <button id="stopButton" class="button button-secondary" type="button" disabled>Stop session</button>
-            </div>
-          </div>
-
-          <div class="capture-actions">
-            <label class="auto-capture-toggle" for="autoCapture"><input id="autoCapture" type="checkbox" checked /><span class="toggle-track"><span></span></span><span><strong>Auto-snap clear frames</strong></span></label>
-            <button id="captureButton" class="button button-secondary" type="button" disabled>Snap photo</button>
-          </div>
-          <p id="actionMessage" class="action-message" aria-live="polite"></p>
-        </section>
-
-        <section class="review-panel" aria-labelledby="reviewTitle">
-        <div class="review-heading"><h2 id="reviewTitle" class="step-title"><span class="step-index">2</span> Review Photos</h2><p id="reviewSummary" class="review-summary">Start a session to collect 3–7 photos.</p></div>
-        <div id="captureGrid" class="capture-grid"></div>
-        <section id="sessionVideoReview" class="session-video-review" hidden aria-labelledby="sessionVideoTitle">
-          <div class="session-video-copy">
-            <h2 id="sessionVideoTitle" class="step-title"><span class="step-index">3</span> Review Recording</h2>
-            <p id="sessionVideoMeta" class="step-meta">00:00</p>
-          </div>
-          <video id="sessionPlayback" controls playsinline preload="metadata"></video>
-        </section>
-        <div class="submit-row">
-          <button id="resetButton" class="button button-quiet" type="button" disabled>Discard session</button>
-          <p id="submitStatus" class="submit-status is-neutral" aria-live="polite"><span id="submitStatusIcon" class="submit-status-icon" aria-hidden="true">•</span><span id="submitHeading">Start a session to begin</span></p>
-          <button id="submitButton" class="button button-submit" type="button" disabled>Submit for analysis</button>
         </div>
-        </section>
-      </div>
 
-      <section id="resultPanel" class="result-panel is-hidden" aria-live="polite"></section>
+        <div id="readyPanel" class="ready-panel">
+          <div id="permissionCard" class="permission-card" hidden>
+            <h1>Camera access is needed to start a walkaround.</h1>
+            <p>Fleetworth uses a live camera to capture exterior views. No VIN, mileage, or file upload is required.</p>
+            <button id="retryCameraButton" class="button button-primary" type="button">Try again</button>
+          </div>
+          <div id="readyCopy" class="ready-copy">
+            <h1>Get a truck value from a quick walkaround.</h1>
+            <p class="ready-lead">Walk around the truck while Fleetworth captures exterior views and compares it with similar market listings.</p>
+            <ul class="ready-expectations">
+              <li>Exterior only</li>
+              <li>About 60–90 seconds</li>
+              <li>No VIN or mileage needed</li>
+              <li>A clear tire view improves the estimate</li>
+            </ul>
+            <button id="startButton" class="button button-primary button-xl" type="button">Start walkaround</button>
+            <p class="ready-helper">We record the session for verification. Captured photos are used for the appraisal.</p>
+          </div>
+        </div>
+
+        <div id="captureHud" class="capture-hud">
+          <div class="capture-topbar">
+            <div class="capture-status-chip"><span class="live-dot"></span><strong>Capturing</strong></div>
+            <div class="capture-metrics">
+              <span id="recordingTime">00:00</span>
+              <span id="captureCount">0 views</span>
+              <span id="coverageChip">Just started</span>
+            </div>
+          </div>
+          <div class="capture-dock">
+            <div id="captureStrip" class="capture-strip" aria-label="Captured views"></div>
+            <p id="actionMessage" class="action-message" aria-live="polite"></p>
+            <div class="capture-actions">
+              <button id="pauseButton" class="button button-ghost" type="button" aria-pressed="false" disabled>Pause</button>
+              <button id="captureButton" class="shutter-button" type="button" disabled aria-label="Capture view"></button>
+              <button id="stopButton" class="button button-stop" type="button" disabled>Stop</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="reviewScreen" class="light-screen review-screen" aria-labelledby="reviewTitle">
+        <div class="light-inner">
+          <h1 id="reviewTitle">Review your walkaround</h1>
+          <p class="light-lead">We’ll use the clearest exterior views to estimate value.</p>
+          <p id="reviewSummary" class="review-summary"></p>
+          <div id="coverageSummary" class="coverage-card"></div>
+          <div id="captureGrid" class="capture-grid"></div>
+          <section id="sessionVideoReview" class="session-video-review" hidden>
+            <p>Session recording saved for verification. It is not used to calculate the value.</p>
+            <video id="sessionPlayback" controls playsinline preload="metadata"></video>
+            <p id="sessionVideoMeta" class="step-meta">00:00</p>
+          </section>
+          <p id="submitStatus" class="submit-status is-neutral" aria-live="polite"><span id="submitStatusIcon" class="submit-status-icon" aria-hidden="true">•</span><span id="submitHeading">Walk around the truck to build coverage.</span></p>
+          <div class="review-actions">
+            <button id="submitButton" class="button button-primary button-xl" type="button" disabled>Estimate truck value</button>
+            <button id="continueButton" class="button button-secondary" type="button">Continue capturing</button>
+            <button id="resetButton" class="button button-quiet" type="button" disabled>Start over</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="resultScreen" class="light-screen result-screen is-hidden" aria-live="polite"></section>
       <canvas id="captureCanvas" class="capture-canvas" aria-hidden="true"></canvas>
+      <label class="auto-capture-toggle visually-hidden" for="autoCapture"><input id="autoCapture" type="checkbox" checked />Auto-snap</label>
     </main>
     <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
