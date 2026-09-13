@@ -23,58 +23,60 @@
     "pages_done": 3,
     "done": true
   },
-  "Peterbilt": {
-    "pages_done": 19,
+<<<<<<< HEAD
+  "Mack": {
+    "pages_done": 13,
     "done": true
   },
-  "579": {
-    "pages_done": 4,
-    "done": true
-  },
-  "567": {
+  "Anthem": {
     "pages_done": 3,
     "done": true
   },
-  "Kenworth": {
-    "pages_done": 68,
+  "Pinnacle": {
+    "pages_done": 36,
     "done": true
   },
-  "W900": {
+  "Hino": {
+    "pages_done": 24,
+    "done": true
+  },
+  "268": {
     "pages_done": 4,
     "done": true
   },
-  "T370": {
-    "pages_done": 3,
+  "338": {
+    "pages_done": 4,
     "done": true
   },
-  "Tow": {
-    "pages_done": 9,
+  "Water": {
+    "pages_done": 13,
     "done": true
   },
   "Truck": {
     "pages_done": 7,
     "done": true
   },
-  "Bucket": {
+  "Winch": {
+    "pages_done": 5,
+    "done": true
+  },
+  "Mack Anthem": {
     "pages_done": 3,
     "done": true
   },
-  "Peterbilt 579": {
+  "Mack Pinnacle": {
     "pages_done": 3,
     "done": true
   },
-  "Peterbilt 567": {
+  "Hino 268": {
     "pages_done": 3,
     "done": true
   },
-  "Kenworth W900": {
-    "pages_done": 4,
-    "done": true
-  },
-  "Kenworth T370": {
+  "Hino 338": {
     "pages_done": 3,
     "done": true
   },
+<<<<<<< HEAD
   "Tow Truck": {
     "pages_done": 3,
     "done": true
@@ -82,5 +84,47 @@
   "Bucket Truck": {
     "pages_done": 3,
     "done": true
+=======
+  "Water Truck": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Winch Truck": {
+    "pages_done": 3,
+    "done": true
+=======
+  "International": {
+    "pages_done": 18,
+    "done": true
+  },
+  "4300": {
+    "pages_done": 12,
+    "done": true
+  },
+  "9900": {
+    "pages_done": 6,
+    "done": true
+  },
+  "Freightliner": {
+    "pages_done": 5,
+    "done": true
+  },
+  "Columbia": {
+    "pages_done": 12,
+    "done": false
+  },
+  "International 4300": {
+    "pages_done": 11,
+    "done": true
+  },
+  "International 9900": {
+    "pages_done": 2,
+    "done": true
+  },
+  "Freightliner Columbia": {
+    "pages_done": 126,
+    "done": false
+>>>>>>> bc78f003937269cb67c110a7965fe71e6069582d
+>>>>>>> 3716be8c9f5b0655db283d74cf7cc7bd12302def
   }
 }
