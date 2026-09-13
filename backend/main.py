@@ -31,6 +31,13 @@ ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 ALLOWED_VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
 
 
+def _base_content_type(content_type: str | None) -> str:
+    """Strip codec/profile parameters (e.g. "video/webm;codecs=vp9,opus" ->
+    "video/webm") so browser-supplied MediaRecorder/Blob MIME types compare
+    correctly against the allowed sets above."""
+    return (content_type or "").split(";", 1)[0].strip().lower()
+
+
 @app.post("/predict")
 async def predict(
     photos: list[UploadFile] = File(...),
@@ -40,12 +47,12 @@ async def predict(
         raise HTTPException(status_code=400, detail="At least one photo is required")
 
     for photo in photos:
-        if photo.content_type not in ALLOWED_IMAGE_TYPES:
+        if _base_content_type(photo.content_type) not in ALLOWED_IMAGE_TYPES:
             raise HTTPException(
                 status_code=400,
                 detail=f"Unsupported photo type: {photo.content_type}",
             )
-    if video.content_type not in ALLOWED_VIDEO_TYPES:
+    if _base_content_type(video.content_type) not in ALLOWED_VIDEO_TYPES:
         raise HTTPException(status_code=400, detail=f"Unsupported video type: {video.content_type}")
 
     photo_bytes = [await p.read() for p in photos]
