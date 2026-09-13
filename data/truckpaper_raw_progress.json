@@ -1,81 +1,151 @@
 {
-  "Isuzu FTR": {
-    "pages_done": 3,
-    "done": true
-  },
-  "Isuzu FVR": {
-    "pages_done": 2,
-    "done": true
-  },
-  "Sterling Acterra": {
-    "pages_done": 3,
-    "done": true
-  },
-  "Autocar": {
-    "pages_done": 3,
-    "done": true
-  },
-  "Snow Plow Truck": {
-    "pages_done": 3,
-    "done": true
-  },
-  "Spreader Truck": {
-    "pages_done": 3,
-    "done": true
-  },
 <<<<<<< HEAD
-  "Mack": {
-    "pages_done": 13,
-    "done": true
-  },
-  "Anthem": {
-    "pages_done": 3,
-    "done": true
-  },
-  "Pinnacle": {
-    "pages_done": 36,
-    "done": true
-  },
-  "Hino": {
-    "pages_done": 24,
-    "done": true
-  },
-  "268": {
-    "pages_done": 4,
-    "done": true
-  },
-  "338": {
-    "pages_done": 4,
-    "done": true
-  },
-  "Water": {
-    "pages_done": 13,
-    "done": true
-  },
-  "Truck": {
-    "pages_done": 7,
-    "done": true
-  },
-  "Winch": {
-    "pages_done": 5,
-    "done": true
-  },
+<<<<<<< HEAD
+<<<<<<< HEAD
   "Mack Anthem": {
+=======
+  "International 4300": {
+>>>>>>> f45416ea69ef2586eec0ffcb42b95c170931b20d
     "pages_done": 3,
+=======
+  "Peterbilt 579": {
+    "pages_done": 4,
+>>>>>>> f777565fb5005c1aa5f82d74e218ac945d1ff159
+    "done": true
+=======
+  "Volvo VNL": {
+    "pages_done": 63,
+    "done": true
+  },
+  "Volvo VNR": {
+    "pages_done": 20,
+    "done": true
+  },
+  "International LT": {
+    "pages_done": 109,
+    "done": true
+  },
+  "International LoneStar": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Kenworth T880": {
+    "pages_done": 93,
+    "done": true
+  },
+  "Peterbilt 567": {
+    "pages_done": 72,
+    "done": true
+  },
+  "Western Star 4900": {
+    "pages_done": 19,
     "done": true
   },
   "Mack Pinnacle": {
-    "pages_done": 3,
+    "pages_done": 29,
     "done": true
   },
-  "Hino 268": {
-    "pages_done": 3,
+  "Ford F650": {
+    "pages_done": 16,
     "done": true
   },
-  "Hino 338": {
-    "pages_done": 3,
+  "Ford F750": {
+    "pages_done": 38,
     "done": true
   },
+<<<<<<< HEAD
+  "GMC Topkick": {
+    "pages_done": 10,
+    "done": true
+  },
+  "Chevrolet Kodiak": {
+    "pages_done": 55,
+    "done": false
+  },
+  "Freightliner 114SD": {
+    "pages_done": 36,
+    "done": true
+  },
+  "Freightliner 108SD": {
+    "pages_done": 10,
+    "done": true
+  },
+  "International HV": {
+    "pages_done": 17,
+    "done": true
+  },
+  "International MV": {
+    "pages_done": 57,
+    "done": true
+  },
+  "Landscape Truck": {
+    "pages_done": 18,
+    "done": true
+  },
+  "Utility Truck": {
+    "pages_done": 97,
+    "done": true
+  },
+  "GMC Savana": {
+    "pages_done": 7,
+    "done": true
+  },
+  "Chevrolet Express": {
+    "pages_done": 24,
+    "done": true
+  },
+  "Ford Transit": {
+    "pages_done": 53,
+    "done": false
+  },
+  "Kenworth": {
+    "pages_done": 61,
+    "done": false
+  },
+  "T700": {
+    "pages_done": 1,
+    "done": true
+  },
+  "Sterling": {
+    "pages_done": 45,
+    "done": true
+  },
+  "LT9500": {
+    "pages_done": 4,
+    "done": true
+  },
+  "Isuzu": {
+    "pages_done": 48,
+    "done": true
+  },
+  "FXR": {
+    "pages_done": 1,
+    "done": true
+  },
+  "Roll": {
+    "pages_done": 80,
+    "done": true
+  },
+  "Off": {
+    "pages_done": 4,
+    "done": true
+  },
+  "Truck": {
+    "pages_done": 4,
+    "done": true
+  },
+  "Sweeper": {
+    "pages_done": 6,
+    "done": true
+  },
+  "Fuel": {
+    "pages_done": 294,
+    "done": true
+=======
+<<<<<<< HEAD
+  "GMC Topkick": {
+    "pages_done": 10,
+=======
 <<<<<<< HEAD
   "Tow Truck": {
     "pages_done": 3,
@@ -87,40 +157,61 @@
 =======
   "Water Truck": {
     "pages_done": 3,
+>>>>>>> 99148dd4af11105ac46905fc21b7f5afe5726345
     "done": true
   },
-  "Winch Truck": {
-    "pages_done": 3,
-    "done": true
-=======
-  "International": {
-    "pages_done": 18,
+  "Chevrolet Kodiak": {
+    "pages_done": 55,
+    "done": false
+  },
+  "Peterbilt 348": {
+    "pages_done": 8,
     "done": true
   },
-  "4300": {
+  "Peterbilt 337": {
     "pages_done": 12,
     "done": true
   },
-  "9900": {
-    "pages_done": 6,
+  "Kenworth T800": {
+    "pages_done": 41,
     "done": true
   },
-  "Freightliner": {
+  "Kenworth T440": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Flatbed Truck": {
+    "pages_done": 65,
+    "done": true
+  },
+  "Refrigerated Truck": {
+    "pages_done": 23,
+    "done": true
+  },
+  "Volvo VHD": {
+    "pages_done": 14,
+    "done": true
+  },
+  "Volvo VAH": {
+    "pages_done": 4,
+    "done": true
+  },
+  "Peterbilt 220": {
     "pages_done": 5,
     "done": true
   },
-  "Columbia": {
-    "pages_done": 12,
-    "done": false
-  },
-  "International 4300": {
-    "pages_done": 11,
-    "done": true
-  },
-  "International 9900": {
+  "Kenworth K270": {
     "pages_done": 2,
     "done": true
   },
+<<<<<<< HEAD
+  "Reefer Truck": {
+    "pages_done": 24,
+    "done": true
+  },
+  "Cab Chassis Truck": {
+    "pages_done": 35,
+=======
   "Freightliner Columbia": {
 <<<<<<< HEAD
     "pages_done": 184,
@@ -139,9 +230,66 @@
     "done": true
 =======
     "pages_done": 126,
+>>>>>>> eb10c57655ccdbe84781907ae37144a470e4d422
     "done": false
+<<<<<<< HEAD
+  },
+  "Volvo": {
+    "pages_done": 6,
+    "done": true
+  },
+  "VHD": {
+    "pages_done": 14,
+    "done": true
+  },
+  "VAH": {
+    "pages_done": 4,
+    "done": true
+  },
+  "Peterbilt": {
+    "pages_done": 19,
+    "done": true
+  },
+  "220": {
+    "pages_done": 17,
+    "done": false
+  },
+  "Kenworth": {
+    "pages_done": 29,
+    "done": true
+  },
+  "K270": {
+    "pages_done": 2,
+    "done": true
+  },
+  "Cement": {
+    "pages_done": 32,
+    "done": true
+  },
+  "Mixer": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Truck": {
+    "pages_done": 24,
+    "done": true
+  },
+  "Asphalt": {
+    "pages_done": 26,
+    "done": true
+  },
+  "Cement Mixer Truck": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Asphalt Truck": {
+    "pages_done": 3,
+    "done": true
+=======
 >>>>>>> bc78f003937269cb67c110a7965fe71e6069582d
 >>>>>>> 3716be8c9f5b0655db283d74cf7cc7bd12302def
 >>>>>>> 99148dd4af11105ac46905fc21b7f5afe5726345
+>>>>>>> 69247e67f3531a51087ac428f6563cfbd9dac52b
+>>>>>>> 5b78f735d7482da5364298b249892d3cc90bdbd7
   }
 }
