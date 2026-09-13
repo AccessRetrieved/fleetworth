@@ -46,5 +46,25 @@
   "Chevrolet Kodiak": {
     "pages_done": 55,
     "done": false
+  },
+  "Peterbilt 348": {
+    "pages_done": 8,
+    "done": true
+  },
+  "Peterbilt 337": {
+    "pages_done": 12,
+    "done": true
+  },
+  "Kenworth T800": {
+    "pages_done": 41,
+    "done": true
+  },
+  "Kenworth T440": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Flatbed Truck": {
+    "pages_done": 54,
+    "done": false
   }
 }
