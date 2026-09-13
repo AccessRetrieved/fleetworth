@@ -31,6 +31,7 @@
     "pages_done": 29,
     "done": true
   },
+<<<<<<< HEAD
   "Mack Anthem": {
     "pages_done": 27,
     "done": true
@@ -50,5 +51,22 @@
   "Winch Truck": {
     "pages_done": 8,
     "done": true
+=======
+  "Peterbilt 579": {
+    "pages_done": 25,
+    "done": true
+  },
+  "Kenworth W900": {
+    "pages_done": 27,
+    "done": true
+  },
+  "Kenworth T370": {
+    "pages_done": 17,
+    "done": true
+  },
+  "Tow Truck": {
+    "pages_done": 57,
+    "done": false
+>>>>>>> 7da3bb7c87ba33a47969088c3b14537fefce7709
   }
 }
