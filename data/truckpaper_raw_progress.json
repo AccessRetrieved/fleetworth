@@ -124,31 +124,7 @@
     "done": true
   },
   "Fuel": {
-    "pages_done": 58,
-    "done": false
-  },
-  "Kenworth T700": {
-    "pages_done": 1,
-    "done": true
-  },
-  "Sterling LT9500": {
-    "pages_done": 4,
-    "done": true
-  },
-  "Isuzu FXR": {
-    "pages_done": 3,
-    "done": true
-  },
-  "Roll Off Truck": {
-    "pages_done": 3,
-    "done": true
-  },
-  "Sweeper Truck": {
-    "pages_done": 6,
-    "done": true
-  },
-  "Fuel Truck": {
-    "pages_done": 8,
+    "pages_done": 209,
     "done": false
   }
 }
