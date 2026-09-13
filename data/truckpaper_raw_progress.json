@@ -23,6 +23,76 @@
     "pages_done": 3,
     "done": true
   },
+<<<<<<< HEAD
+  "Mack": {
+    "pages_done": 13,
+    "done": true
+  },
+  "Anthem": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Pinnacle": {
+    "pages_done": 36,
+    "done": true
+  },
+  "Hino": {
+    "pages_done": 24,
+    "done": true
+  },
+  "268": {
+    "pages_done": 4,
+    "done": true
+  },
+  "338": {
+    "pages_done": 4,
+    "done": true
+  },
+  "Water": {
+    "pages_done": 13,
+    "done": true
+  },
+  "Truck": {
+    "pages_done": 7,
+    "done": true
+  },
+  "Winch": {
+    "pages_done": 5,
+    "done": true
+  },
+  "Mack Anthem": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Mack Pinnacle": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Hino 268": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Hino 338": {
+    "pages_done": 3,
+    "done": true
+  },
+<<<<<<< HEAD
+  "Tow Truck": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Bucket Truck": {
+    "pages_done": 3,
+    "done": true
+=======
+  "Water Truck": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Winch Truck": {
+    "pages_done": 3,
+    "done": true
+=======
   "International": {
     "pages_done": 18,
     "done": true
@@ -52,6 +122,7 @@
     "done": true
   },
   "Freightliner Columbia": {
+<<<<<<< HEAD
     "pages_done": 184,
     "done": true
   },
@@ -66,5 +137,11 @@
   "Day Cab Truck": {
     "pages_done": 5,
     "done": true
+=======
+    "pages_done": 126,
+    "done": false
+>>>>>>> bc78f003937269cb67c110a7965fe71e6069582d
+>>>>>>> 3716be8c9f5b0655db283d74cf7cc7bd12302def
+>>>>>>> 99148dd4af11105ac46905fc21b7f5afe5726345
   }
 }
