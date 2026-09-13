@@ -7,6 +7,14 @@ submission stays disabled until it finishes. Coverage recovery preserves
 existing views. A missed browser detection permits explicitly labelled manual
 capture only when the local lighting/sharpness checks pass.
 
+Session video targets 1.5 Mbps and stops automatically at five recorded minutes
+or 80 MiB of received chunks, keeping the photos for review. The bitrate is an
+encoder hint, so review and submission also check the final file sizes. The
+backend allows videos up to 256 MiB, including recordings made before this fix.
+Review displays the recording size; an oversized recording can be replaced via
+**Continue capturing** while keeping the existing photos. No video is silently
+omitted or truncated. The video is still verification evidence only.
+
 Run interaction regressions with `node --test frontend/tests/capture.test.cjs`
 from the repository root. These stub DOM/media/network boundaries and need no
 camera or API key. Real-camera/visual checks remain separate.

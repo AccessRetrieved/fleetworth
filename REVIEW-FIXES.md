@@ -1,5 +1,13 @@
 # Current review resolution — 2026-09-13
 
+Follow-up: live video had no bitrate, duration, or byte budget, so the 100 MiB
+video ceiling could reject a normal six-photo walkaround. New recordings target
+1.5 Mbps and finalize at five minutes/80 MiB of chunks. The backend accepts up
+to 256 MiB video plus 70 MiB photos, including legacy recordings; final size
+checks and file-specific errors cover browsers that exceed the bitrate hint.
+See the [MediaStream Recording specification](https://www.w3.org/TR/mediastream-recording/)
+for encoder-hint semantics. Photos and the complete session video are preserved.
+
 Rechecked the Critical/Major findings in `code-review.md` and `CODE-REVIEW2.md`
 against the current checkout before changing code. The original reports remain
 historical snapshots; their line numbers and descriptions are not current contracts.
@@ -37,8 +45,8 @@ that the subject is not a truck.
 
 ## Verification
 
-- `backend/.venv/bin/python -m pytest -q backend/tests`: 56 passed.
-- `node --test frontend/tests/capture.test.cjs`: 7 passed.
+- `backend/.venv/bin/python -m pytest -q backend/tests`: 89 passed after integrating the concurrent pricing changes, including six photos plus a 101 MiB recording.
+- `node --test frontend/tests/capture.test.cjs`: 13 passed, including bitrate, automatic stop, preflight rejection, and preserving photos while replacing an oversized video.
 - JavaScript syntax, Flask route, Python compilation, and `git diff --check` pass.
 - Browser: one-photo then two-photo selection retains three views and enables
   submission; centered desktop review and 390px mobile layout inspected.

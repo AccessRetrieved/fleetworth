@@ -10,6 +10,14 @@ const GUIDE_STEPS = [
 
 const MIN_PHOTOS = 3;
 const TARGET_PHOTOS = 7;
+const MIB = 1024 * 1024;
+// Keep aligned with backend/main.py; check before sending any file bytes.
+const MAX_PHOTO_BYTES = 10 * MIB;
+const MAX_VIDEO_BYTES = 256 * MIB;
+const MAX_SUBMISSION_BYTES = MAX_VIDEO_BYTES + TARGET_PHOTOS * MAX_PHOTO_BYTES;
+const RECORDING_BITS_PER_SECOND = 1_500_000;
+const RECORDING_STOP_BYTES = 80 * MIB; // headroom for the final recorder chunk
+const MAX_RECORDING_MS = 5 * 60 * 1000;
 const ANALYSIS_INTERVAL_MS = 600;
 const AUTO_CAPTURE_DELAY_MS = 6000;
 const MIN_VEHICLE_SCORE = 0.42;
@@ -105,6 +113,8 @@ let detector;
 let detectorMode = "loading";
 let mediaRecorder;
 let mediaChunks = [];
+let recordedBytes = 0;
+let recordingStopNotice = "";
 let sessionVideo;
 let sessionVideoUrl;
 let sessionDurationMs = 0;
@@ -252,7 +262,7 @@ function renderCoverageSummary() {
 function renderSubmitStatus(count, enoughPhotos, ready) {
   if (isFinalizing) setSubmitStatus("neutral", "Saving your recording…");
   else if (captureSource === "photos" && !enoughPhotos) setSubmitStatus("neutral", `Add ${MIN_PHOTOS - count} more exterior ${MIN_PHOTOS - count === 1 ? "photo" : "photos"} to estimate. You can select several at once.`);
-  else if (ready) setSubmitStatus("ready", "Ready to estimate from the captured views.");
+  else if (ready) setSubmitStatus("ready", recordingStopNotice || "Ready to estimate from the captured views.");
   else if (sessionVideo && !enoughPhotos) setSubmitStatus("alert", "Continue capturing for broader exterior coverage.");
   else if (isPaused) setSubmitStatus("alert", "Unpause to keep capturing.");
   else if (isRecording) setSubmitStatus("neutral", enoughPhotos ? "Stop when you have useful exterior coverage." : "Keep walking — coverage is still building.");
@@ -272,16 +282,18 @@ function renderReview() {
     ? `${label}. Uploaded exterior photos will be used to estimate value.`
     : `${label}. We’ll use the clearest exterior views to estimate value.`;
   renderSubmitStatus(count, enoughPhotos, ready);
+  const sizeError = uploadSizeError(captures.map((capture) => capture.blob), sessionVideo);
+  if (sizeError && !isRecording && !isFinalizing) setSubmitStatus("alert", sizeError);
   renderCoverageSummary();
   resetButton.disabled = !captures.length && !sessionVideo && !isRecording;
-  submitButton.disabled = !ready || isRecording || isFinalizing || isSubmitting;
+  submitButton.disabled = !ready || Boolean(sizeError) || isRecording || isFinalizing || isSubmitting;
   continueButton.disabled = isSubmitting || isFinalizing || (captureSource === "photos" && count >= TARGET_PHOTOS);
   continueButton.hidden = false;
   continueButton.textContent = captureSource === "photos" ? "Add photos" : "Continue capturing";
   sessionVideoReview.hidden = !sessionVideoUrl;
   if (sessionVideoUrl) {
     if (sessionPlayback.src !== sessionVideoUrl) sessionPlayback.src = sessionVideoUrl;
-    sessionVideoMeta.textContent = formatDuration(sessionDurationMs);
+    sessionVideoMeta.textContent = `${formatDuration(sessionDurationMs)} · ${formatFileSize(sessionVideo.size)}`;
   }
   renderCaptures();
   renderCaptureStrip();
@@ -477,7 +489,27 @@ function updateCaptureReadiness() {
 function chooseRecorderOptions() {
   const types = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/mp4"];
   const mimeType = types.find((type) => MediaRecorder.isTypeSupported(type));
-  return mimeType ? { mimeType } : undefined;
+  return { ...(mimeType ? { mimeType } : {}), videoBitsPerSecond: RECORDING_BITS_PER_SECOND };
+}
+
+function formatFileSize(bytes) {
+  return `${(bytes / MIB).toFixed(1)} MiB`;
+}
+
+function uploadSizeError(photos, video) {
+  const oversized = photos.findIndex((photo) => photo.size > MAX_PHOTO_BYTES);
+  if (oversized >= 0) return `Photo ${oversized + 1} is ${formatFileSize(photos[oversized].size)}; the limit is ${formatFileSize(MAX_PHOTO_BYTES)} per photo. Choose a smaller image.`;
+  if (video?.size > MAX_VIDEO_BYTES) return `Session recording is ${formatFileSize(video.size)}; the limit is ${formatFileSize(MAX_VIDEO_BYTES)}. Use Continue capturing to record a shorter session while keeping your photos.`;
+  if (photos.reduce((total, photo) => total + photo.size, video?.size || 0) > MAX_SUBMISSION_BYTES) return `Photos and recording exceed the ${formatFileSize(MAX_SUBMISSION_BYTES)} submission limit.`;
+  return "";
+}
+
+function checkRecordingBudget() {
+  if (!isRecording || isFinalizing) return;
+  if (recordedBytes >= RECORDING_STOP_BYTES || sessionElapsedMs() >= MAX_RECORDING_MS) {
+    recordingStopNotice = "Recording saved at the session limit. Your photos are ready to review.";
+    stopSession();
+  }
 }
 
 function sessionVideoFilename() {
@@ -492,6 +524,7 @@ function runClock() {
   window.clearInterval(clockTimer);
   clockTimer = window.setInterval(() => {
     recordingTime.textContent = formatDuration(sessionElapsedMs());
+    checkRecordingBudget();
   }, 1000);
 }
 
@@ -618,6 +651,8 @@ function startSession() {
   }
   clearResult();
   mediaChunks = [];
+  recordedBytes = 0;
+  recordingStopNotice = "";
   sessionVideo = undefined;
   sessionDurationMs = 0;
   if (sessionVideoUrl) URL.revokeObjectURL(sessionVideoUrl);
@@ -628,7 +663,13 @@ function startSession() {
     actionMessage.textContent = "We could not start the session recorder with this camera.";
     return;
   }
-  mediaRecorder.addEventListener("dataavailable", (event) => { if (event.data.size) mediaChunks.push(event.data); });
+  mediaRecorder.addEventListener("dataavailable", (event) => {
+    if (event.data.size) {
+      mediaChunks.push(event.data);
+      recordedBytes += event.data.size;
+      checkRecordingBudget();
+    }
+  });
   mediaRecorder.addEventListener("stop", () => {
     isFinalizing = false;
     isRecording = false;
@@ -1197,6 +1238,8 @@ function renderBackendResponse(response = {}) {
 }
 
 async function postPredict(formData) {
+  const sizeError = uploadSizeError(formData.getAll("photos"), formData.get("video"));
+  if (sizeError) throw new Error(sizeError);
   const endpoint = document.body.dataset.predictEndpoint;
   if (DEMO_MODE || !endpoint) {
     renderAnalysisState();
@@ -1251,6 +1294,8 @@ function clearSessionVideo() {
   sessionVideoUrl = undefined;
   sessionDurationMs = 0;
   mediaChunks = [];
+  recordedBytes = 0;
+  recordingStopNotice = "";
   sessionPlayback.pause();
   sessionPlayback.removeAttribute("src");
   sessionPlayback.load();

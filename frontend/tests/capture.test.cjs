@@ -161,3 +161,54 @@ test('existing refusal rendering and HTTP detail handling remain correct', async
   a.sandbox.fetch = async () => ({ ok: false, status: 422, json: async () => ({ detail: [{ loc: ['body', 'photos'], msg: 'Field required' }] }) });
   await assert.rejects(a.run('postPredict(new FormData())'), /photos: Field required/);
 });
+
+test('six photos and a recording above the old 100 MiB cap fit the new allowance', () => {
+  const a = app();
+  assert.equal(a.run('uploadSizeError(Array.from({length:6}, () => ({size:2*MIB})), {size:150*MIB})'), '');
+  assert.equal(a.run('uploadSizeError(Array.from({length:7}, () => ({size:MAX_PHOTO_BYTES})), {size:MAX_VIDEO_BYTES})'), '');
+  assert.match(a.run('uploadSizeError([{size:MAX_PHOTO_BYTES+1}], null)'), /Photo 1.*limit/);
+  assert.match(a.run('uploadSizeError([], {size:MAX_VIDEO_BYTES+1})'), /Session recording.*Continue capturing/);
+});
+
+test('recorder requests a controlled bitrate, including the default-codec fallback', () => {
+  const a = app();
+  assert.equal(a.run('chooseRecorderOptions().videoBitsPerSecond'), 1_500_000);
+  a.run('MediaRecorder.isTypeSupported = () => false');
+  assert.equal(a.run('chooseRecorderOptions().videoBitsPerSecond'), 1_500_000);
+  assert.equal(a.run('chooseRecorderOptions().mimeType'), undefined);
+});
+
+for (const limit of ['recordedBytes = RECORDING_STOP_BYTES - 1', 'recordingStartedAt = Date.now() - MAX_RECORDING_MS']) {
+  test(`recording budget stops and preserves all photos: ${limit}`, async () => {
+    const a = app();
+    await selectPhotos(a, 6);
+    a.run('cameraStream = {}; startSession()');
+    a.run(limit);
+    a.run('mediaRecorder.events.dataavailable({data:new Blob(["chunk"])}); checkRecordingBudget()');
+    assert.equal(a.element('.app-shell').dataset.screen, 'review');
+    assert.equal(a.element('#submitButton').disabled, true);
+    a.run('mediaRecorder.finish()');
+    assert.equal(a.element('#submitButton').disabled, false);
+    assert.equal(a.run('captures.length'), 6);
+    assert.equal(a.run('sessionVideo.size'), 14); // retains every chunk, including final data
+    assert.match(a.element('#sessionVideoMeta').textContent, /MiB/);
+    assert.match(a.element('#submitHeading').textContent, /session limit/);
+  });
+}
+
+test('oversized evidence is blocked before a network request', async () => {
+  const a = app();
+  a.sandbox.fetch = () => assert.fail('Must not upload oversized evidence');
+  await assert.rejects(a.run('postPredict({getAll: () => [], get: () => ({size:MAX_VIDEO_BYTES+1})})'), /Session recording/);
+});
+
+test('re-recording an oversized video keeps the six existing photos', async () => {
+  const a = app();
+  await selectPhotos(a, 6);
+  a.run('captureSource = "live"; sessionVideo = {size:MAX_VIDEO_BYTES+1}; renderReview()');
+  assert.equal(a.element('#submitButton').disabled, true);
+  assert.match(a.element('#submitHeading').textContent, /Session recording/);
+  a.run('cameraStream = {}; startSession(); stopSession(); mediaRecorder.finish()');
+  assert.equal(a.run('captures.length'), 6);
+  assert.equal(a.element('#submitButton').disabled, false);
+});

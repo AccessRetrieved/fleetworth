@@ -4,11 +4,15 @@ import json
 import os
 import threading
 import time
+import tempfile
 import uuid
 
 import pytest
 
 import main
+from fastapi import UploadFile
+from starlette.datastructures import Headers
+import io
 
 
 async def request(body=b"", path="/predict", headers=None):
@@ -148,3 +152,27 @@ def test_retention_only_removes_expired_submission_directories():
     main.cleanup_expired_evidence()
     assert not old.exists()
     assert recent.exists() and unrelated.exists()
+
+
+def test_six_photos_with_recording_above_old_limit_succeed():
+    # Sparse input and chunked storage exercise the real default limits
+    # without buffering a 101 MiB request in memory or calling paid inference.
+    video_file = tempfile.TemporaryFile()
+    size = 101 * 1024 * 1024
+    video_file.seek(size - 1)
+    video_file.write(b'\0')
+    video_file.seek(0)
+    video = UploadFile(video_file, filename="session.webm", headers=Headers({"content-type": "video/webm"}))
+    photos = [UploadFile(io.BytesIO(b"photo"), filename="view.jpg", headers=Headers({"content-type": "image/jpeg"})) for _ in range(6)]
+    result = main.predict(photos, video)
+    assert result["status"] == "priced"
+    assert result["photo_count"] == 6
+    assert (main.UPLOAD_DIR / result["submission_id"] / "video.webm").stat().st_size == size
+
+
+@pytest.mark.parametrize("kind,label", [("photo", "Photo 1"), ("video", "Session recording")])
+def test_size_errors_identify_the_offending_file(monkeypatch, kind, label):
+    monkeypatch.setattr(main, "MAX_PHOTO_BYTES" if kind == "photo" else "MAX_VIDEO_BYTES", 2)
+    status, result = asyncio.run(request(multipart(video=b"recording")))
+    assert status == 413
+    assert result["detail"].startswith(label)

@@ -28,8 +28,9 @@ logger = logging.getLogger(__name__)
 PREDICTION_SLOTS = BoundedSemaphore(2)
 MAX_PHOTOS = 7
 MAX_PHOTO_BYTES = 10 * 1024 * 1024
-MAX_VIDEO_BYTES = 100 * 1024 * 1024
-MAX_SUBMISSION_BYTES = 120 * 1024 * 1024
+MAX_VIDEO_BYTES = 256 * 1024 * 1024
+# Allow a full recording plus all seven photos at their individual limits.
+MAX_SUBMISSION_BYTES = MAX_VIDEO_BYTES + MAX_PHOTOS * MAX_PHOTO_BYTES
 MAX_BODY_BYTES = MAX_SUBMISSION_BYTES + 1024 * 1024
 CHUNK_BYTES = 1024 * 1024
 RETENTION_SECONDS = 24 * 60 * 60
@@ -150,24 +151,27 @@ def predict(
 
         total = 0
 
-        def chunks(upload, limit):
+        def chunks(upload, limit, label):
             nonlocal total
             size = 0
             while chunk := upload.file.read(CHUNK_BYTES):
                 size += len(chunk)
                 total += len(chunk)
-                if size > limit or total > MAX_SUBMISSION_BYTES:
-                    raise HTTPException(status_code=413, detail="Upload exceeds the photo, video, or total submission size limit.")
+                if size > limit:
+                    raise HTTPException(status_code=413, detail=f"{label} exceeds the {limit / (1024 * 1024):g} MiB limit. "
+                                        + ("Record a shorter session; your captured photos can be kept." if label == "Session recording" else "Choose a smaller image."))
+                if total > MAX_SUBMISSION_BYTES:
+                    raise HTTPException(status_code=413, detail=f"Photos and recording together exceed the {MAX_SUBMISSION_BYTES / (1024 * 1024):g} MiB submission limit.")
                 yield chunk
             if not size:
                 raise HTTPException(status_code=400, detail="Uploaded files must not be empty.")
 
-        photo_bytes = [b"".join(chunks(photo, MAX_PHOTO_BYTES)) for photo in photos]
+        photo_bytes = [b"".join(chunks(photo, MAX_PHOTO_BYTES, f"Photo {i + 1}")) for i, photo in enumerate(photos)]
         if video:
             submission_dir.mkdir(parents=True, exist_ok=True)
             extension = {"video/mp4": ".mp4", "video/webm": ".webm", "video/quicktime": ".mov"}[_base_content_type(video.content_type)]
             with (submission_dir / f"video{extension}").open("wb") as output:
-                for chunk in chunks(video, MAX_VIDEO_BYTES):
+                for chunk in chunks(video, MAX_VIDEO_BYTES, "Session recording"):
                     output.write(chunk)
         result = run_pipeline(photo_bytes, submission_id=submission_id)
         if result.get("status") == "service_error":

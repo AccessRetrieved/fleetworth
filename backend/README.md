@@ -19,11 +19,13 @@ If running without `--reload`, restart uvicorn after changing backend code.
 Photo-only uploads do not require a video. Live capture still sends the video
 as verification evidence; video never enters the pricing pipeline.
 
-Limits: 10 MiB per photo, 100 MiB per video, 120 MiB combined file content,
-and 121 MiB for the entire multipart body, enforced while receiving it.
+Limits: 10 MiB per photo, 256 MiB per video, 326 MiB combined file content,
+and 327 MiB for the entire multipart body, enforced while receiving it.
 At most two predictions run concurrently per server process; excess requests
 receive a retryable 503. Disk access and inference run off the async event loop.
-An ingress proxy should enforce the same 121 MiB request-body ceiling.
+An ingress proxy should enforce the same 327 MiB request-body ceiling.
+Size errors identify the offending photo or session recording. The combined
+budget accommodates a full recording and all seven photos at their limits.
 
 Rejected/failed submissions leave no stored video or damage annotations.
 Successful evidence expires after 24 hours; a startup/hourly cleanup removes
