@@ -22,5 +22,41 @@
   "Spreader Truck": {
     "pages_done": 3,
     "done": true
+  },
+  "Mack": {
+    "pages_done": 13,
+    "done": true
+  },
+  "Anthem": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Pinnacle": {
+    "pages_done": 36,
+    "done": true
+  },
+  "Hino": {
+    "pages_done": 24,
+    "done": true
+  },
+  "268": {
+    "pages_done": 4,
+    "done": true
+  },
+  "338": {
+    "pages_done": 4,
+    "done": true
+  },
+  "Water": {
+    "pages_done": 13,
+    "done": true
+  },
+  "Truck": {
+    "pages_done": 7,
+    "done": true
+  },
+  "Winch": {
+    "pages_done": 5,
+    "done": true
   }
 }
