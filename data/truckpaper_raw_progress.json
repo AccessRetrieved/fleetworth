@@ -44,7 +44,11 @@
     "done": true
   },
   "Chevrolet Kodiak": {
-    "pages_done": 55,
+    "pages_done": 171,
+    "done": true
+  },
+  "Garbage Truck": {
+    "pages_done": 5,
     "done": false
   }
 }
