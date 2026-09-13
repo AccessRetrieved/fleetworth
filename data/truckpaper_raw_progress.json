@@ -36,7 +36,27 @@
     "done": true
   },
   "Sterling": {
+    "pages_done": 28,
+    "done": true
+  },
+  "Acterra": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Snow": {
     "pages_done": 6,
-    "done": false
+    "done": true
+  },
+  "Plow": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Truck": {
+    "pages_done": 4,
+    "done": true
+  },
+  "Spreader": {
+    "pages_done": 5,
+    "done": true
   }
 }
