@@ -44,7 +44,11 @@
     "done": true
   },
   "Tow Truck": {
-    "pages_done": 57,
-    "done": false
+    "pages_done": 102,
+    "done": true
+  },
+  "Bucket Truck": {
+    "pages_done": 46,
+    "done": true
   }
 }
