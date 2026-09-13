@@ -64,7 +64,11 @@
     "done": true
   },
   "Flatbed Truck": {
-    "pages_done": 61,
+    "pages_done": 65,
+    "done": true
+  },
+  "Refrigerated Truck": {
+    "pages_done": 2,
     "done": false
   }
 }
