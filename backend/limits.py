@@ -20,7 +20,6 @@ import cv2
 import numpy as np
 
 BLUR_VARIANCE_THRESHOLD = 100.0  # Laplacian variance below this = too blurry to trust
-NOT_TRUCK_CONFIDENCE_THRESHOLD = 0.3  # extraction confidence below this counts as a "not a truck" vote
 LOW_CONFIDENCE_THRESHOLD = 0.35  # fused-pipeline-wide floor before we refuse to price
 MIN_USABLE_PHOTOS = 3  # coverage proxy — PLAN.md expects 3-7 photos per session
 NEAR_DUPLICATE_HAMMING_THRESHOLD = 12  # out of 64 bits — below this, treat as the same shot repeated
@@ -95,7 +94,14 @@ def evaluate(extractions: list[dict | None], duplicate_count: int = 0) -> dict:
       {"status": "not_a_truck", "message": ...}
       {"status": "needs_more_info", "reason": ..., "message": ...}
     """
-    usable = [e for e in extractions if e is not None]
+    usable = [e for e in extractions if e is not None and "_error" not in e]
+    failures = sum(e is not None and "_error" in e for e in extractions)
+    if failures and len(usable) < MIN_USABLE_PHOTOS:
+        return {
+            "status": "service_error",
+            "message": "The photo analysis service could not process enough views. "
+                       "Your photos are still available; please try again shortly.",
+        }
 
     if not usable:
         return {
@@ -111,7 +117,6 @@ def evaluate(extractions: list[dict | None], duplicate_count: int = 0) -> dict:
         1 for e in usable
         if not e.get("is_truck", True)
         or not e.get("is_real_photo", True)
-        or e.get("confidence", 1.0) < NOT_TRUCK_CONFIDENCE_THRESHOLD
     )
     if not_truck_votes > len(usable) / 2:
         return {

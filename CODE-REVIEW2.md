@@ -1,4 +1,5 @@
 Fleetworth — Full-Stack Code Review
+Current resolution: [2026-09-13 recheck and fixes](REVIEW-FIXES.md). The report below is a historical snapshot; some findings were already fixed before that recheck.
 Scope: frontend → backend flow (everything)
 Focus: correctness / UX robustness / security / performance / readability / PLAN.md design invariants
 Branch reviewed: main (as of review date)

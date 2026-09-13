@@ -6,17 +6,99 @@ the auto-snapped exterior photos and the session video. Only the photos
 go through the pricing pipeline; the video is stored as-is, purely as a
 real-life/anti-forgery record (no processing of it in this build).
 """
+import asyncio
+import logging
+import shutil
+import time
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
+from threading import BoundedSemaphore
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
+from starlette.responses import JSONResponse
 
 from damage_visualization import RESULTS_DIR
 from pipeline import run_pipeline
 
-app = FastAPI(title="Fleetworth Backend")
+logger = logging.getLogger(__name__)
+PREDICTION_SLOTS = BoundedSemaphore(2)
+MAX_PHOTOS = 7
+MAX_PHOTO_BYTES = 10 * 1024 * 1024
+MAX_VIDEO_BYTES = 100 * 1024 * 1024
+MAX_SUBMISSION_BYTES = 120 * 1024 * 1024
+MAX_BODY_BYTES = MAX_SUBMISSION_BYTES + 1024 * 1024
+CHUNK_BYTES = 1024 * 1024
+RETENTION_SECONDS = 24 * 60 * 60
+
+
+def cleanup_expired_evidence():
+    cutoff = time.time() - RETENTION_SECONDS
+    for root in (UPLOAD_DIR, RESULTS_DIR):
+        if not root.exists():
+            continue
+        for path in root.iterdir():
+            try:
+                uuid.UUID(path.name)
+                if not path.is_symlink() and path.is_dir() and path.stat().st_mtime < cutoff:
+                    shutil.rmtree(path)
+            except (ValueError, FileNotFoundError):
+                continue
+
+
+@asynccontextmanager
+async def lifespan(app):
+    async def cleanup_loop():
+        while True:
+            try:
+                await run_in_threadpool(cleanup_expired_evidence)
+            except OSError:
+                logger.exception("Evidence cleanup failed")
+            await asyncio.sleep(3600)
+
+    task = asyncio.create_task(cleanup_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+app = FastAPI(title="Fleetworth Backend", lifespan=lifespan)
+
+
+class UploadBodyLimit:
+    """Bound the actual request stream before multipart parsing/spooling."""
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["path"] != "/predict":
+            return await self.app(scope, receive, send)
+        headers = dict(scope.get("headers", []))
+        try:
+            length = int(headers.get(b"content-length", b"0"))
+        except ValueError:
+            length = MAX_BODY_BYTES + 1
+        if length > MAX_BODY_BYTES:
+            return await JSONResponse({"detail": "Submission is too large."}, status_code=413)(scope, receive, send)
+        received = 0
+
+        async def bounded_receive():
+            nonlocal received
+            message = await receive()
+            received += len(message.get("body", b""))
+            if received > MAX_BODY_BYTES:
+                raise HTTPException(status_code=413, detail="Submission is too large.")
+            return message
+
+        await self.app(scope, bounded_receive, send)
+
+
+app.add_middleware(UploadBodyLimit)
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,8 +113,7 @@ RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/results", StaticFiles(directory=RESULTS_DIR), name="results")
 
 UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
-MIN_PHOTOS = 1  # pipeline.limits.MIN_USABLE_PHOTOS gates the real coverage requirement;
-                # this is just the API-layer floor so we don't call the pipeline on nothing
+MIN_PHOTOS = 3
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 ALLOWED_VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
@@ -46,39 +127,66 @@ def _base_content_type(content_type: str | None) -> str:
 
 
 @app.post("/predict")
-async def predict(
+def predict(
     photos: list[UploadFile] = File(...),
-    video: UploadFile = File(...),
+    video: UploadFile | None = File(None),
 ):
-    if len(photos) < MIN_PHOTOS:
-        raise HTTPException(status_code=400, detail="At least one photo is required")
-
-    for photo in photos:
-        if _base_content_type(photo.content_type) not in ALLOWED_IMAGE_TYPES:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported photo type: {photo.content_type}",
-            )
-    if _base_content_type(video.content_type) not in ALLOWED_VIDEO_TYPES:
-        raise HTTPException(status_code=400, detail=f"Unsupported video type: {video.content_type}")
-
-    photo_bytes = [await p.read() for p in photos]
-
-    # Store the video as-is (authenticity record — never processed here).
+    # A synchronous route runs all disk and pipeline work in Starlette's
+    # thread pool. Reject excess work instead of queuing paid inference.
+    if not PREDICTION_SLOTS.acquire(blocking=False):
+        raise HTTPException(status_code=503, detail="The analysis service is busy. Please try again shortly.")
     submission_id = str(uuid.uuid4())
     submission_dir = UPLOAD_DIR / submission_id
-    submission_dir.mkdir(parents=True, exist_ok=True)
-    video_ext = Path(video.filename or "session.mp4").suffix or ".mp4"
-    video_path = submission_dir / f"video{video_ext}"
-    video_path.write_bytes(await video.read())
-
+    retain = False
     try:
-        result = run_pipeline(photo_bytes, submission_id=submission_id)
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Pipeline error: {e}")
+        if not MIN_PHOTOS <= len(photos) <= MAX_PHOTOS:
+            raise HTTPException(status_code=400, detail=f"Provide {MIN_PHOTOS}–{MAX_PHOTOS} exterior photos.")
 
-    result["submission_id"] = submission_id
-    return result
+        for photo in photos:
+            if _base_content_type(photo.content_type) not in ALLOWED_IMAGE_TYPES:
+                raise HTTPException(status_code=400, detail=f"Unsupported photo type: {photo.content_type}")
+        if video and _base_content_type(video.content_type) not in ALLOWED_VIDEO_TYPES:
+            raise HTTPException(status_code=400, detail=f"Unsupported video type: {video.content_type}")
+
+        total = 0
+
+        def chunks(upload, limit):
+            nonlocal total
+            size = 0
+            while chunk := upload.file.read(CHUNK_BYTES):
+                size += len(chunk)
+                total += len(chunk)
+                if size > limit or total > MAX_SUBMISSION_BYTES:
+                    raise HTTPException(status_code=413, detail="Upload exceeds the photo, video, or total submission size limit.")
+                yield chunk
+            if not size:
+                raise HTTPException(status_code=400, detail="Uploaded files must not be empty.")
+
+        photo_bytes = [b"".join(chunks(photo, MAX_PHOTO_BYTES)) for photo in photos]
+        if video:
+            submission_dir.mkdir(parents=True, exist_ok=True)
+            extension = {"video/mp4": ".mp4", "video/webm": ".webm", "video/quicktime": ".mov"}[_base_content_type(video.content_type)]
+            with (submission_dir / f"video{extension}").open("wb") as output:
+                for chunk in chunks(video, MAX_VIDEO_BYTES):
+                    output.write(chunk)
+        result = run_pipeline(photo_bytes, submission_id=submission_id)
+        if result.get("status") == "service_error":
+            raise HTTPException(status_code=503, detail=result["message"])
+        result["submission_id"] = submission_id
+        retain = result.get("status") == "priced"
+        return result
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Pipeline failed for %s", submission_id)
+        raise HTTPException(status_code=502, detail="The photo analysis service could not complete your appraisal. Please try again shortly.")
+    finally:
+        PREDICTION_SLOTS.release()
+        if not retain:
+            shutil.rmtree(submission_dir, ignore_errors=True)
+            shutil.rmtree(RESULTS_DIR / submission_id, ignore_errors=True)
+        for upload in [*photos, *([video] if video else [])]:
+            upload.file.close()
 
 
 @app.get("/health")

@@ -95,16 +95,16 @@ def run_pipeline(
                 seen_hashes.append(photo_hash)
         extractions.append(extract_from_image(photo, client=client))
 
-    annotated_paths = []
-    if submission_id is not None:
-        annotated_paths = save_annotated_photos(submission_id, photos, extractions)
-
     gate = evaluate(extractions, duplicate_count=duplicate_count)
     if gate["status"] != "priced":
         return gate
 
-    usable = [e for e in extractions if e is not None]
-    usable_photos = [p for p, e in zip(photos, extractions) if e is not None]
+    valid_extractions = [e if e is not None and "_error" not in e else None for e in extractions]
+    annotated_paths = []
+    if submission_id is not None:
+        annotated_paths = save_annotated_photos(submission_id, photos, valid_extractions)
+    usable = [e for e in valid_extractions if e is not None]
+    usable_photos = [p for p, e in zip(photos, valid_extractions) if e is not None]
     fused = fuse_extractions(usable)
     visual = retrieve_visual_comps(usable_photos, year_estimate=fused.get("year_estimate"))
     result = {"status": "priced", **compute_price(fused, visual=visual)}

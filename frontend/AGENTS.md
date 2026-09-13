@@ -31,7 +31,7 @@ Interior/cab photos remain out of scope. Do not require VIN, mileage, make, mode
 - Guidance is flexible copy that advances after a photo is saved. Coverage language is qualitative: Just started / Building coverage / Good exterior coverage / Strong coverage.
 - While recording, auto-snap may collect clear frames and the user may tap the shutter. Keep a 3-photo submission floor and 7-photo ceiling internally, but do not present those numbers as a mandatory checklist. Leave enough auto-capture delay for the user to walk to a meaningfully different view.
 - **Stop** finalizes the recording and opens **Review your walkaround**. The video is a live-capture/authenticity record and must not be used by pricing or visual extraction.
-- Review shows photo states, a coverage summary, **Estimate truck value**, **Continue capturing**, and **Start over**. No VIN, mileage, make/model, or condition fields, and no uploads.
+- Review shows photo states, a coverage summary, **Estimate truck value**, **Continue capturing** (or **Add photos** for uploads), and centered **Start over**. Photo selections accumulate up to seven. No VIN, mileage, make/model, or condition fields.
 - **Submit** POSTs the photos and session video. Render loading (“Building your appraisal”), `priced` (range + confidence label, never a single point price), `needs_more_info` (amber recovery, not an error), `not_a_truck` (unable to assess), and distinct technical errors.
 
 ## Browser-side evidence rules
@@ -103,7 +103,8 @@ Also test the route with Flask's test client, run `git diff --check`, and visual
 ## Change rules
 
 - Keep vision extraction and pricing separate; this frontend only selects evidence.
-- Keep capture camera-only and session-based; no arbitrary upload path or fixed-angle gating.
+- Live capture remains session-based, with no fixed-angle gating. The user-authorized photo upload path allows adding photos on review and submitting without a video. Preserve existing photos during coverage recovery; a deliberate new capture/reset still discards them.
+- If local detection misses a vehicle in a sharp, well-lit frame, allow an explicitly labelled manual shutter. Auto-snap still requires detection; backend subject and coverage gates still apply.
 - Preserve the 3-photo minimum and 7-photo ceiling; an incomplete evidence package must not submit.
 - The video remains an authenticity record only, never a pricing input.
 - Prefer a precise corrective prompt over accepting a blurry, clipped, non-vehicle frame.

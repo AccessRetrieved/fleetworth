@@ -1,5 +1,8 @@
 # Code Review
 
+> Historical review. See [current resolution and verification](REVIEW-FIXES.md)
+> for the 2026-09-13 recheck of Critical/Major findings and the implemented fixes.
+
 **Scope:** Whole tracked repository at `/Users/jonathantran/Documents/ChatGPT/54 Hacks`, commit `525ca2ec2c8d95eebe86f00cde6157b071c9172a`: backend API, extraction, fusion, pricing, DINO retrieval/index construction, scraper/cleaner, tests, dependency manifests/locks, and consistency checks on committed data. No PR/base branch was supplied; this is a repository review, not a review limited to the latest commit. The working tree was initially clean.
 **Date:** 2026-09-12
 **Project:** Fleetworth estimates commercial-truck prices from exterior photos, using vision extraction and comparable listings; capture videos are stored as evidence.

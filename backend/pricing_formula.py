@@ -79,6 +79,12 @@ def compute_price(extraction: dict, visual: dict | None = None) -> dict:
     base = base_price_lookup(make, model, year_estimate)
     lookup_price = base["base_price"]
     base_confidence_score = BASE_MATCH_CONFIDENCE.get(base["confidence"], 0.4)
+    # Match quality and sample support are separate limits. Twelve listings
+    # reach full support; one listing can support at most 50% confidence.
+    support = min(1.0, 0.5 + max(0, base["sample_size"] - 1) / 22)
+    base_confidence_score = min(base_confidence_score, support)
+    lookup_spread = max(0.0, base.get("relative_spread", 0.0))
+    base_confidence_score /= 1 + lookup_spread
 
     visual = visual or {"available": False, "reason": "visual retrieval not run"}
     visual_price = visual.get("visual_base_price") if visual.get("available") else None
@@ -88,6 +94,8 @@ def compute_price(extraction: dict, visual: dict | None = None) -> dict:
     )
 
     notes = []
+    if base["sample_size"] < 3:
+        notes.append("Few matching listings are available, so the estimate has a wider range.")
     if identity_uncertain and visual_strong:
         # DINO fallback (PLAN.md 4d): the VLM couldn't pin down which truck
         # this is, but real listings that look like it exist — price from
@@ -128,10 +136,16 @@ def compute_price(extraction: dict, visual: dict | None = None) -> dict:
                 # better supported than its sample size alone suggests. Still
                 # capped by how sure the VLM was about the identity.
                 overall_confidence = min(
-                    vlm_confidence, max(base_confidence_score, float(visual["visual_confidence"]))
+                    vlm_confidence, (base_confidence_score + float(visual["visual_confidence"])) / 2
                 )
         else:
             signal_agreement = "partial"
+
+    # Price dispersion remains adverse evidence even if the medians agree,
+    # including neighborhoods classified as weak because of that dispersion.
+    if visual_price is not None and base_price_source == "make_model_year_lookup":
+        spread = max(0.0, (visual.get("price_spread") or {}).get("relative_iqr", 0.0))
+        overall_confidence /= 1 + spread
 
     condition_score = CONDITION_MAP.get(condition, CONDITION_MAP["fair"])
     tire_score = TIRE_MAP.get(tire_condition, TIRE_MAP["worn"])

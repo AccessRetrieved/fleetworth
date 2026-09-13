@@ -118,9 +118,15 @@ def _parse_and_validate(raw_text: str) -> dict:
 
     data = json.loads(text)  # raises json.JSONDecodeError on malformed output
 
+    if not isinstance(data, dict):
+        raise ExtractionError("extraction must be an object")
+
     missing = REQUIRED_KEYS - data.keys()
     if missing:
         raise ExtractionError(f"missing keys: {missing}")
+    for key in ("make", "model", "year_estimate", "trim", "condition", "tire_condition"):
+        if not isinstance(data[key], str):
+            raise ExtractionError(f"{key} must be a string")
     if data["condition"] not in VALID_CONDITION:
         raise ExtractionError(f"invalid condition: {data['condition']!r}")
     if data["tire_condition"] not in VALID_TIRE:
@@ -143,26 +149,13 @@ def _parse_and_validate(raw_text: str) -> dict:
 
 
 def _fallback_unknown(reason: str) -> dict:
-    return {
-        "is_truck": False,
-        "is_real_photo": False,
-        "make": "unknown",
-        "model": "unknown",
-        "year_estimate": "unknown",
-        "trim": "unknown",
-        "condition": "fair",
-        "visible_damage": [],
-        "tires_visible": False,
-        "tire_condition": "worn",
-        "confidence": 0.0,
-        "_error": reason,
-    }
+    # Service failures are not observations about the subject or condition.
+    return {"_error": reason}
 
 
 def extract_from_image(image: str | bytes, client: OpenAI | None = None) -> dict:
-    """Run structured extraction on a single image. Retries once on malformed
-    JSON, then falls back to an 'unknown' record so the pipeline never crashes
-    on a bad frame (Phase 2 requirement)."""
+    """Retry malformed output once, then return an explicit failure record.
+    Failures never contribute subject, identity, or condition observations."""
     client = client or _client()
 
     last_error = None

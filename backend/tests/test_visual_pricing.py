@@ -127,7 +127,7 @@ def test_without_visual_signal_prices_from_lookup(monkeypatch):
 
     assert result["breakdown"]["base_price_source"] == "make_model_year_lookup"
     assert result["breakdown"]["base_price"] == 50_000.0
-    assert result["confidence"] == 0.7
+    assert 0.5 < result["confidence"] < 0.7  # three comps limit support
     assert result["breakdown"]["visual_comps"]["available"] is False
 
 
@@ -176,3 +176,33 @@ def test_uncertain_identity_with_weak_visual_keeps_lookup(monkeypatch):
     assert result["breakdown"]["base_price_source"] == "make_model_year_lookup"
     assert result["breakdown"]["base_price"] == 90_000.0
     assert result["breakdown"]["visual_comps"]["signal_agreement"] is None
+
+
+def test_single_comp_has_lower_confidence_and_wider_range(monkeypatch):
+    base = fake_lookup()(None, None, None)
+    monkeypatch.setattr(pricing_formula, "base_price_lookup", lambda *args: {**base, "sample_size": 1})
+    thin = compute_price(EXTRACTION)
+    monkeypatch.setattr(pricing_formula, "base_price_lookup", lambda *args: {**base, "sample_size": 12})
+    supported = compute_price(EXTRACTION)
+    assert thin["confidence"] <= 0.5
+    assert thin["confidence"] < supported["confidence"]
+    assert range_width(thin) > range_width(supported)
+
+
+@pytest.mark.parametrize("strength", ["strong", "weak"])
+def test_visual_spread_widens_range_even_when_medians_agree(monkeypatch, strength):
+    monkeypatch.setattr(pricing_formula, "base_price_lookup", fake_lookup())
+    visual = {**strong_visual(50_000), "strength": strength}
+    narrow = compute_price(EXTRACTION, visual={**visual, "price_spread": {"relative_iqr": 0}})
+    broad = compute_price(EXTRACTION, visual={**visual, "price_spread": {"relative_iqr": 1.8}})
+    assert broad["confidence"] < narrow["confidence"]
+    assert range_width(broad) > range_width(narrow)
+
+
+def test_lookup_spread_widens_range(monkeypatch):
+    base = {**fake_lookup()(None, None, None), "sample_size": 12}
+    monkeypatch.setattr(pricing_formula, "base_price_lookup", lambda *args: base)
+    narrow = compute_price(EXTRACTION)
+    base["relative_spread"] = 1.5
+    broad = compute_price(EXTRACTION)
+    assert range_width(broad) > range_width(narrow)

@@ -113,6 +113,7 @@ def base_price_lookup(make: str, model: str, year) -> dict:
                 "confidence": "high",
                 "match_level": "exact",
                 "sample_size": year_bucket["count"],
+                "relative_spread": (year_bucket["max"] - year_bucket["min"]) / max(year_bucket["avg"], 1),
                 "notes": f"Exact match: {make_key} {model_family} {year_int}",
             }
 
@@ -126,6 +127,7 @@ def base_price_lookup(make: str, model: str, year) -> dict:
             "confidence": "medium",
             "match_level": "nearest_year",
             "sample_size": nearest_bucket["count"],
+            "relative_spread": (nearest_bucket["max"] - nearest_bucket["min"]) / max(nearest_bucket["avg"], 1),
             "notes": f"No {year_int} comps for {make_key} {model_family}; used nearest year {nearest_year}",
         }
 

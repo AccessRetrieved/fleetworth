@@ -98,6 +98,7 @@ let activeCameraId = "";
 let isOpeningCamera = false;
 let isCapturing = false;
 let isRecording = false;
+let isFinalizing = false;
 let isPaused = false;
 let pendingStart = false;
 let detector;
@@ -110,6 +111,8 @@ let sessionDurationMs = 0;
 let recordingStartedAt;
 let elapsedBeforePause = 0;
 let analysisTimer;
+let analysisGeneration = 0;
+let captureGeneration = 0;
 let clockTimer;
 let toastTimer;
 let analysisStageTimer;
@@ -247,7 +250,9 @@ function renderCoverageSummary() {
 }
 
 function renderSubmitStatus(count, enoughPhotos, ready) {
-  if (ready) setSubmitStatus("ready", "Ready to estimate from the captured views.");
+  if (isFinalizing) setSubmitStatus("neutral", "Saving your recording…");
+  else if (captureSource === "photos" && !enoughPhotos) setSubmitStatus("neutral", `Add ${MIN_PHOTOS - count} more exterior ${MIN_PHOTOS - count === 1 ? "photo" : "photos"} to estimate. You can select several at once.`);
+  else if (ready) setSubmitStatus("ready", "Ready to estimate from the captured views.");
   else if (sessionVideo && !enoughPhotos) setSubmitStatus("alert", "Continue capturing for broader exterior coverage.");
   else if (isPaused) setSubmitStatus("alert", "Unpause to keep capturing.");
   else if (isRecording) setSubmitStatus("neutral", enoughPhotos ? "Stop when you have useful exterior coverage." : "Keep walking — coverage is still building.");
@@ -259,7 +264,7 @@ function renderReview() {
   const enoughPhotos = count >= MIN_PHOTOS;
   const ready = captureSource === "photos"
     ? enoughPhotos
-    : enoughPhotos && Boolean(sessionVideo);
+    : enoughPhotos && Boolean(sessionVideo?.size);
   const label = coverageLabel(count);
   captureCount.textContent = `${count} ${count === 1 ? "view" : "views"}`;
   coverageChip.textContent = label;
@@ -269,9 +274,10 @@ function renderReview() {
   renderSubmitStatus(count, enoughPhotos, ready);
   renderCoverageSummary();
   resetButton.disabled = !captures.length && !sessionVideo && !isRecording;
-  submitButton.disabled = !ready || isRecording || isSubmitting;
-  continueButton.disabled = isSubmitting || captureSource === "photos";
-  continueButton.hidden = captureSource === "photos";
+  submitButton.disabled = !ready || isRecording || isFinalizing || isSubmitting;
+  continueButton.disabled = isSubmitting || isFinalizing || (captureSource === "photos" && count >= TARGET_PHOTOS);
+  continueButton.hidden = false;
+  continueButton.textContent = captureSource === "photos" ? "Add photos" : "Continue capturing";
   sessionVideoReview.hidden = !sessionVideoUrl;
   if (sessionVideoUrl) {
     if (sessionPlayback.src !== sessionVideoUrl) sessionPlayback.src = sessionVideoUrl;
@@ -332,6 +338,7 @@ async function refreshCameraList(preferredCameraId = getActiveCameraId()) {
 }
 
 function stopAnalysisLoop() {
+  analysisGeneration += 1;
   window.clearTimeout(analysisTimer);
   analysisTimer = undefined;
   stableSince = 0;
@@ -397,7 +404,8 @@ function assessVehicleFrame(predictions, quality) {
   const vehicle = predictions.filter((item) => VEHICLE_CLASSES.has(item.class) && item.score >= MIN_VEHICLE_SCORE).sort((a, b) => b.score - a.score)[0];
   if (!vehicle) {
     clearDetectionOverlay();
-    return { ready: false, type: "warning", message: "Keep the truck in frame", confidence: 0, quality };
+    const fallback = assessFallbackFrame(quality);
+    return { ...fallback, ready: false, manualReady: fallback.ready, type: "warning", message: fallback.ready ? "Truck not detected — tap the shutter to capture manually" : fallback.message, confidence: 0, quality };
   }
   drawDetection(vehicle);
   const [x, y, width, height] = vehicle.bbox;
@@ -413,15 +421,20 @@ function assessVehicleFrame(predictions, quality) {
   return { ready: true, type: "ready", message: "Looking good — keep walking around the truck", confidence: vehicle.score, quality };
 }
 
-async function analyzeCurrentFrame() {
+async function analyzeCurrentFrame(generation = analysisGeneration) {
+  if (generation !== analysisGeneration) return;
   if (!cameraStream || preview.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || isCapturing) {
-    analysisTimer = window.setTimeout(analyzeCurrentFrame, ANALYSIS_INTERVAL_MS);
+    analysisTimer = window.setTimeout(() => analyzeCurrentFrame(generation), ANALYSIS_INTERVAL_MS);
     return;
   }
   try {
     const quality = measureFrameQuality();
     lastQuality = quality;
-    if (detectorMode === "ready" && detector) currentAssessment = assessVehicleFrame(await detector.detect(preview, 10, 0.35), quality);
+    if (detectorMode === "ready" && detector) {
+      const predictions = await detector.detect(preview, 10, 0.35);
+      if (generation !== analysisGeneration) return;
+      currentAssessment = assessVehicleFrame(predictions, quality);
+    }
     else if (detectorMode === "loading") currentAssessment = { ready: false, type: "loading", message: "Loading truck detector…", confidence: 0, quality };
     else {
       clearDetectionOverlay();
@@ -429,10 +442,15 @@ async function analyzeCurrentFrame() {
     }
     updateCaptureReadiness();
   } catch {
-    currentAssessment = { ready: false, type: "error", message: "Framing check paused — try again", confidence: 0, quality: lastQuality };
+    if (generation !== analysisGeneration) return;
+    detectorMode = "fallback";
+    autoCapture.checked = false;
+    autoCapture.disabled = true;
+    const fallback = lastQuality ? assessFallbackFrame(lastQuality) : { ready: false };
+    currentAssessment = { ...fallback, type: "warning", message: fallback.ready ? "Auto-snap unavailable — tap the shutter" : "Framing check unavailable — hold steady in good lighting", confidence: 0, quality: lastQuality };
     updateCaptureReadiness();
   }
-  analysisTimer = window.setTimeout(analyzeCurrentFrame, ANALYSIS_INTERVAL_MS);
+  if (generation === analysisGeneration) analysisTimer = window.setTimeout(() => analyzeCurrentFrame(generation), ANALYSIS_INTERVAL_MS);
 }
 
 function updateCaptureReadiness() {
@@ -442,8 +460,9 @@ function updateCaptureReadiness() {
     setFrameStatus("warning", "Paused — resume to capture");
     return;
   }
-  const canSnap = isRecording && currentAssessment.ready && captures.length < TARGET_PHOTOS && !isCapturing;
-  captureButton.disabled = !canSnap;
+  const hasRoom = isRecording && captures.length < TARGET_PHOTOS && !isCapturing;
+  const canSnap = hasRoom && currentAssessment.ready;
+  captureButton.disabled = !(hasRoom && (currentAssessment.ready || currentAssessment.manualReady));
   setFrameStatus(currentAssessment.type, currentAssessment.message);
   if (!canSnap) {
     stableSince = 0;
@@ -587,6 +606,7 @@ function startWalkaround() {
 }
 
 function startSession() {
+  if (isFinalizing) return;
   if (!cameraStream) {
     pendingStart = true;
     openCamera();
@@ -610,6 +630,7 @@ function startSession() {
   }
   mediaRecorder.addEventListener("dataavailable", (event) => { if (event.data.size) mediaChunks.push(event.data); });
   mediaRecorder.addEventListener("stop", () => {
+    isFinalizing = false;
     isRecording = false;
     isPaused = false;
     stopClock();
@@ -650,6 +671,7 @@ function startSession() {
   startClock();
   setScreen("capturing");
   renderAll();
+  startAnalysisLoop();
 }
 
 function togglePause() {
@@ -676,7 +698,20 @@ function togglePause() {
 }
 
 function stopSession() {
-  if (mediaRecorder?.state === "recording" || mediaRecorder?.state === "paused") mediaRecorder.stop();
+  if (isFinalizing) return;
+  pauseClock();
+  isRecording = false;
+  isPaused = false;
+  stopAnalysisLoop();
+  captureButton.disabled = true;
+  pauseButton.disabled = true;
+  stopButton.disabled = true;
+  isFinalizing = mediaRecorder?.state === "recording" || mediaRecorder?.state === "paused";
+  if (!discardingSession) {
+    setScreen("review");
+    renderAll();
+  }
+  if (isFinalizing) mediaRecorder.stop();
 }
 
 function canvasToBlob(canvas) {
@@ -684,7 +719,9 @@ function canvasToBlob(canvas) {
 }
 
 async function captureFrame({ automatic = false } = {}) {
-  if (!isRecording || isPaused || !currentAssessment.ready || captures.length >= TARGET_PHOTOS || isCapturing) return;
+  const ready = currentAssessment.ready || (!automatic && currentAssessment.manualReady);
+  if (!isRecording || isPaused || !ready || captures.length >= TARGET_PHOTOS || isCapturing) return;
+  const generation = captureGeneration;
   isCapturing = true;
   stopAnalysisLoop();
   const scale = Math.min(1, 1920 / preview.videoWidth);
@@ -693,6 +730,7 @@ async function captureFrame({ automatic = false } = {}) {
   captureCanvas.getContext("2d").drawImage(preview, 0, 0, captureCanvas.width, captureCanvas.height);
   try {
     const blob = await canvasToBlob(captureCanvas);
+    if (generation !== captureGeneration) return;
     const quality = currentAssessment.quality || lastQuality;
     const helpful = /tire/i.test(currentGuide().title + currentGuide().instruction);
     captures.push({
@@ -704,7 +742,7 @@ async function captureFrame({ automatic = false } = {}) {
       height: captureCanvas.height,
       detectorConfidence: currentAssessment.confidence,
       blurry: Boolean(quality?.isBlurry),
-      limited: currentAssessment.confidence > 0 && currentAssessment.confidence < 0.55,
+      limited: Boolean(currentAssessment.manualReady) || (currentAssessment.confidence > 0 && currentAssessment.confidence < 0.55),
       helpful,
     });
     forcedGuide = null;
@@ -722,7 +760,7 @@ async function captureFrame({ automatic = false } = {}) {
   } finally {
     isCapturing = false;
     stableSince = 0;
-    startAnalysisLoop();
+    if (isRecording) startAnalysisLoop();
   }
 }
 
@@ -745,8 +783,9 @@ function buildManifest() {
 }
 
 function buildFormData() {
+  if (isRecording || isFinalizing) return null;
   if (captures.length < MIN_PHOTOS) return null;
-  if (captureSource !== "photos" && !sessionVideo) return null;
+  if (captureSource !== "photos" && !sessionVideo?.size) return null;
   const manifest = buildManifest();
   const formData = new FormData();
   formData.append("manifest", new Blob([JSON.stringify(manifest)], { type: "application/json" }), "manifest.json");
@@ -929,9 +968,13 @@ function appendResultActions(container, buttons) {
 }
 
 function beginFocusedRecapture(guide) {
-  resetSession({ confirmUser: false, followupMessage: "" });
   forcedGuide = guide;
-  startWalkaround();
+  clearResult();
+  if (captureSource === "photos" || captures.length >= TARGET_PHOTOS) {
+    setScreen("review");
+    renderAll();
+    setSubmitStatus("neutral", captures.length >= TARGET_PHOTOS ? "Remove a less useful view to make room for the requested detail." : "Add the requested exterior photos, then estimate again.");
+  } else startWalkaround();
 }
 
 function renderPricedResult(response) {
@@ -1082,7 +1125,11 @@ function renderNotATruck(response) {
   card.append(createElement("p", "result-copy", response.message || "Fleetworth will not return a value unless a truck is clearly visible."));
   resultPanel.append(card);
   appendResultActions(resultPanel, [
-    ["Start new capture", "button button-amber button-xl", () => beginFocusedRecapture(GUIDE_STEPS[0])],
+    ["Start new capture", "button button-amber button-xl", () => {
+      resetSession({ confirmUser: false, followupMessage: "" });
+      forcedGuide = GUIDE_STEPS[0];
+      startWalkaround();
+    }],
     ["Start over", "button button-quiet", () => resetSession({ confirmUser: false, followupMessage: "" })],
   ]);
 }
@@ -1150,7 +1197,7 @@ async function postPredict(formData) {
     const detailText = typeof detail === "string"
       ? detail
       : Array.isArray(detail)
-        ? detail.map((item) => item.msg || JSON.stringify(item)).join(" ")
+        ? detail.map((item) => `${item.loc?.slice(1).join(".") || "Submission"}: ${item.msg || "Invalid value"}`).join(" ")
         : "";
     throw new Error(detailText || data.message || `The analysis service returned ${response.status}.`);
   }
@@ -1178,6 +1225,7 @@ async function submitSession() {
 }
 
 function clearCaptures() {
+  captureGeneration += 1;
   captures.forEach((capture) => URL.revokeObjectURL(capture.url));
   captures.splice(0, captures.length);
 }
@@ -1203,10 +1251,12 @@ async function handlePhotoUpload(fileList) {
   if (files.length > TARGET_PHOTOS) {
     actionMessage.textContent = `Using the first ${TARGET_PHOTOS} photos for this appraisal.`;
   }
-  clearCaptures();
-  clearSessionVideo();
+  if (captureSource !== "photos") {
+    clearCaptures();
+    clearSessionVideo();
+  }
   captureSource = "photos";
-  const selected = files.slice(0, TARGET_PHOTOS);
+  const selected = files.slice(0, TARGET_PHOTOS - captures.length);
   for (const file of selected) {
     const blob = file.type ? file : new Blob([await file.arrayBuffer()], { type: "image/jpeg" });
     captures.push({
@@ -1226,9 +1276,6 @@ async function handlePhotoUpload(fileList) {
   setSessionState("Photos ready", "complete");
   setScreen("review");
   renderAll();
-  if (captures.length < MIN_PHOTOS) {
-    setSubmitStatus("alert", `Add at least ${MIN_PHOTOS} exterior photos to estimate.`);
-  }
 }
 
 async function handleVideoUpload(fileList) {
@@ -1265,7 +1312,7 @@ async function handleVideoUpload(fileList) {
 function resetSession({ confirmUser = true, followupMessage = "Session discarded." } = {}) {
   if (confirmUser && !window.confirm("Start over and discard this walkaround?")) return;
   clearCaptures();
-  if (isRecording) {
+  if (isRecording || isFinalizing) {
     discardingSession = true;
     stopSession();
   }
@@ -1326,7 +1373,10 @@ videoFileInput?.addEventListener("change", async () => {
 pauseButton.addEventListener("click", togglePause);
 stopButton.addEventListener("click", stopSession);
 captureButton.addEventListener("click", () => captureFrame());
-continueButton.addEventListener("click", startWalkaround);
+continueButton.addEventListener("click", () => {
+  if (captureSource === "photos") photoFileInput?.click();
+  else startWalkaround();
+});
 resetButton.addEventListener("click", () => resetSession());
 submitButton.addEventListener("click", submitSession);
 autoCapture.addEventListener("change", () => { stableSince = 0; });

@@ -783,6 +783,8 @@ body:has(.app-shell[data-screen="capturing"]) {
 .submit-status.is-neutral { color: var(--muted); font-weight: 500; }
 
 .review-actions { display: grid; gap: 10px; margin-top: 8px; }
+.review-actions #resetButton { grid-column: 1 / -1; justify-self: center; }
+.review-actions #continueButton { grid-column: 1 / -1; }
 .capture-canvas { display: none; }
 
 /* ---------- Results ---------- */

@@ -1,5 +1,16 @@
 # Fleetworth live truck capture
 
+Photo uploads accumulate across selections. Use **Add photos** on review to
+add more, up to seven. Three photos can submit without a session video.
+**Stop** opens review immediately while the live recording finishes saving;
+submission stays disabled until it finishes. Coverage recovery preserves
+existing views. A missed browser detection permits explicitly labelled manual
+capture only when the local lighting/sharpness checks pass.
+
+Run interaction regressions with `node --test frontend/tests/capture.test.cjs`
+from the repository root. These stub DOM/media/network boundaries and need no
+camera or API key. Real-camera/visual checks remain separate.
+
 Fleetworth is a 54 Hackathon FA26 prototype that estimates a used truck's price from visual evidence. This directory owns Phase 2a: one guided, live truck walkaround before the vision-extraction and pricing stages run.
 
 ## What this frontend does

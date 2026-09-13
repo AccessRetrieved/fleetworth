@@ -19,6 +19,9 @@ tests) can import this module without loading either.
 """
 import io
 import json
+import subprocess
+import sys
+import tempfile
 import warnings
 from functools import lru_cache
 from pathlib import Path
@@ -29,7 +32,7 @@ from PIL import Image, ImageOps
 
 MODEL_REPO = "facebookresearch/dinov2"
 MODEL_NAME = "dinov2_vitb14"
-METHOD = "DINOv2 ViT-B/14 + FAISS cosine retrieval"
+METHOD = "DINOv2 ViT-B/14 + exact cosine retrieval (FAISS index)"
 
 INDEX_DIR = Path(__file__).resolve().parent.parent / "data" / "dino_index"
 INDEX_FILE = "comps.faiss"
@@ -151,12 +154,43 @@ def embed_images(images: list, model=None) -> np.ndarray:
 def build_index(embeddings: np.ndarray):
     """FAISS IndexFlatIP over L2-normalized vectors (exact cosine search —
     plenty fast at hackathon scale)."""
+    vectors = np.ascontiguousarray(l2_normalize(embeddings))
+    if sys.platform == "darwin":
+        return NumpyFlatIP(vectors)
     import faiss
 
-    vectors = np.ascontiguousarray(l2_normalize(embeddings))
     index = faiss.IndexFlatIP(vectors.shape[1])
     index.add(vectors)
     return index
+
+
+class NumpyFlatIP:
+    """Exact flat inner-product search without loading FAISS alongside Torch
+    on macOS. On-disk FAISS compatibility is handled in a fresh process."""
+    def __init__(self, vectors):
+        self.vectors = np.ascontiguousarray(vectors, dtype=np.float32)
+        self.ntotal, self.d = self.vectors.shape
+
+    def search(self, queries, k):
+        scores = queries @ self.vectors.T
+        rows = np.argsort(-scores, axis=1, kind="stable")[:, :k]
+        return np.take_along_axis(scores, rows, axis=1), rows
+
+
+def _convert_faiss(payload, operation):
+    # subprocess exec starts a clean interpreter: no inherited Torch/OpenMP
+    # runtime, and native aborts become recoverable RetrievalUnavailable.
+    with tempfile.TemporaryDirectory(prefix="fleetworth-index-") as folder:
+        source, target = Path(folder) / "input", Path(folder) / "output"
+        source.write_bytes(payload)
+        try:
+            subprocess.run(
+                [sys.executable, str(Path(__file__).with_name("faiss_io_worker.py")), operation, str(source), str(target)],
+                check=True, capture_output=True, timeout=60,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise RetrievalUnavailable("Isolated FAISS index conversion failed") from exc
+        return target.read_bytes()
 
 
 INDEX_PART_BYTES = 90_000_000  # stay safely under GitHub's 100MB hard push limit
@@ -169,8 +203,6 @@ def _index_part_paths(index_path: Path, parts: int) -> list[Path]:
 
 def save_index(index, items: list[dict], index_dir: Path = INDEX_DIR, model_name: str = MODEL_NAME) -> None:
     """items[i] must describe index row i (listing_id, price, make, ...)."""
-    import faiss
-
     if index.ntotal != len(items):
         raise ValueError(f"index has {index.ntotal} vectors but {len(items)} metadata items")
     index_dir = Path(index_dir)
@@ -183,9 +215,15 @@ def save_index(index, items: list[dict], index_dir: Path = INDEX_DIR, model_name
     # concatenation, since this is just a byte stream, not a structured
     # per-row format like the shard .npy files.
     index_path = index_dir / INDEX_FILE
+    if isinstance(index, NumpyFlatIP):
+        buffer = io.BytesIO()
+        np.save(buffer, index.vectors, allow_pickle=False)
+        raw = _convert_faiss(buffer.getvalue(), "encode")
+    else:
+        import faiss
+        raw = faiss.serialize_index(index).tobytes()
     for stale in [index_path, *index_dir.glob(f"{index_path.stem}.part*{index_path.suffix}")]:
         stale.unlink(missing_ok=True)
-    raw = faiss.serialize_index(index).tobytes()
     parts = max(1, -(-len(raw) // INDEX_PART_BYTES))
     for k, path in enumerate(_index_part_paths(index_path, parts)):
         path.write_bytes(raw[k * INDEX_PART_BYTES:(k + 1) * INDEX_PART_BYTES])
@@ -202,15 +240,18 @@ def load_index(index_dir: Path = INDEX_DIR):
         raise RetrievalUnavailable(
             f"DINO comp index not found in {index_dir} — run `uv run python build_dino_index.py`"
         )
-    try:
-        import faiss
-    except ImportError as e:
-        raise RetrievalUnavailable(f"faiss is not installed: {e}") from e
-
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     parts = meta.get("index_parts", 1)  # absent means an old single-file index, pre-split
     raw = b"".join(p.read_bytes() for p in _index_part_paths(index_path, parts))
-    index = faiss.deserialize_index(np.frombuffer(raw, dtype=np.uint8))
+    if sys.platform == "darwin":
+        vectors = np.load(io.BytesIO(_convert_faiss(raw, "decode")), allow_pickle=False)
+        index = NumpyFlatIP(vectors)
+    else:
+        try:
+            import faiss
+        except ImportError as e:
+            raise RetrievalUnavailable(f"faiss is not installed: {e}") from e
+        index = faiss.deserialize_index(np.frombuffer(raw, dtype=np.uint8))
     if index.ntotal != len(meta["items"]):
         raise RetrievalUnavailable(
             f"DINO index ({index.ntotal} vectors) and metadata ({len(meta['items'])} items) are out of sync — rebuild the index"

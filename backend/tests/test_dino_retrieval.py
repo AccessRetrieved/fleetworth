@@ -1,6 +1,9 @@
 """DINOv2 embedding + FAISS index plumbing. A stub model stands in for DINOv2
 so these run without downloading weights."""
 import io
+import subprocess
+import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -88,3 +91,23 @@ def test_retrieve_per_view_finds_the_visually_matching_comp(tmp_path):
 
     assert [view[0]["listing_id"] for view in per_view] == ["1", "2"]
     assert all(len(view) == 2 for view in per_view)
+
+
+def test_native_retrieval_smoke_in_subprocess(tmp_path):
+    # A native abort must fail a test, never take down the entire test run.
+    script = """
+import sys
+from pathlib import Path
+import numpy as np
+import torch
+from dino_retrieval import build_index, save_index, search
+with torch.inference_mode():
+    vectors = torch.eye(4).matmul(torch.eye(4)).numpy()
+folder = Path(sys.argv[1])
+save_index(build_index(vectors), [{'listing_id': str(i)} for i in range(4)], folder)
+assert search(vectors[2:3], k=1, index_dir=folder)[0][0]['listing_id'] == '2'
+if sys.platform == 'darwin':
+    assert 'faiss' not in sys.modules
+"""
+    result = subprocess.run([sys.executable, "-c", script, str(tmp_path)], cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stderr

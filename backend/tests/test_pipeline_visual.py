@@ -3,6 +3,8 @@ stubbed out."""
 import pytest
 
 import pipeline
+from limits import evaluate
+from vision_extract import _fallback_unknown
 from dino_retrieval import RetrievalUnavailable
 
 EXTRACTION = {
@@ -77,3 +79,29 @@ def test_unexpected_retrieval_error_does_not_fail_the_request(stub_vlm, monkeypa
 
     assert result["status"] == "priced"
     assert result["breakdown"]["visual_comps"]["reason"].startswith("OSError")
+
+
+@pytest.mark.parametrize("valid_count", [0, 1, 2])
+def test_extraction_failures_return_service_error(stub_vlm, monkeypatch, valid_count):
+    calls = iter([dict(EXTRACTION)] * valid_count + [_fallback_unknown("timeout")] * (3 - valid_count))
+    monkeypatch.setattr(pipeline, "extract_from_image", lambda *args, **kwargs: next(calls))
+    monkeypatch.setattr(pipeline, "retrieve_per_view", lambda *args: pytest.fail("Must not retrieve"))
+    result = pipeline.run_pipeline([b"front", b"side", b"rear"])
+    assert result["status"] == "service_error"
+
+
+def test_failed_extra_view_cannot_change_condition_or_enter_retrieval(stub_vlm, monkeypatch):
+    calls = iter([{**EXTRACTION, "condition": "excellent"}] * 3 + [_fallback_unknown("timeout")])
+    monkeypatch.setattr(pipeline, "extract_from_image", lambda *args, **kwargs: next(calls))
+    queried = []
+    monkeypatch.setattr(pipeline, "retrieve_visual_comps", lambda photos, **kwargs: queried.extend(photos) or {"available": False})
+    result = pipeline.run_pipeline([b"front", b"side", b"rear", b"failed"])
+    assert result["status"] == "priced"
+    assert result["breakdown"]["condition"] == "excellent"
+    assert result["breakdown"]["views_used"] == 3
+    assert queried == [b"front", b"side", b"rear"]
+
+
+def test_genuine_non_truck_and_unknown_identity_are_distinct():
+    assert evaluate([{**EXTRACTION, "is_truck": False}] * 3)["status"] == "not_a_truck"
+    assert evaluate([{**EXTRACTION, "confidence": 0.1}] * 3)["status"] == "needs_more_info"
