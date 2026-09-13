@@ -68,7 +68,39 @@
     "done": true
   },
   "Utility Truck": {
-    "pages_done": 6,
+    "pages_done": 97,
+    "done": true
+  },
+  "GMC Savana": {
+    "pages_done": 7,
+    "done": true
+  },
+  "Chevrolet Express": {
+    "pages_done": 24,
+    "done": true
+  },
+  "Ford Transit": {
+    "pages_done": 53,
+    "done": false
+  },
+  "Kenworth": {
+    "pages_done": 61,
+    "done": false
+  },
+  "T700": {
+    "pages_done": 1,
+    "done": true
+  },
+  "Sterling": {
+    "pages_done": 45,
+    "done": true
+  },
+  "LT9500": {
+    "pages_done": 4,
+    "done": true
+  },
+  "Isuzu": {
+    "pages_done": 45,
     "done": false
   }
 }
