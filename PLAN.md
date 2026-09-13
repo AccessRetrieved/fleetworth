@@ -2,6 +2,26 @@
 
 Webapp that predicts a used truck's price from a photo or video alone — no mileage, no VIN, no manual input. Built for 54 Hackathon FA26 (Supply Chain & Automation track, sponsored by Kamion).
 
+## Status (as of 2026-09-13)
+
+Backend pipeline (Phases 1–5) is complete, tested, and merged into `main`:
+scraper → 67,563 raw listings → 58,723 cleaned → 57,809 DINOv2-embedded
+comps; VLM extraction (`gpt-4o-mini`, validated against `gpt-4o` — mini
+won on model-family/year accuracy at ~1/17th the cost, see
+`backend/eval_vlm_accuracy.py`); fused VLM+DINO pricing formula tuned via
+leave-one-out sanity checks (dataset-median baseline 47.2% → 13.2% median
+abs. % error with the shipped formula, `backend/build_dino_index.py
+--sanity-only`). 24/24 backend tests passing.
+
+Frontend (Phase 6) exists and works end-to-end against the current
+backend (live camera capture, guide overlay, auto-snap, results/needs-more-
+info/error views, annotated damage photos) — currently evaluating a second
+design (`UIv2` branch) against it before picking one for the demo.
+
+Remaining: Phase 7 (demo prep) hasn't been started — this is the actual
+risk to close out, not further engineering. Phases 4c and 6b are optional
+stretch goals, not required.
+
 ## Architecture
 
 ```
@@ -193,7 +213,7 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
   ```
 - [x] Reject/downweight very weak visual matches below a chosen cosine-similarity threshold rather than forcing every query to use bad neighbors
 - [x] Use the spread of retrieved comp prices (weighted IQR / MAD / standard deviation) as a direct uncertainty signal
-- [ ] Apply the existing visible-condition adjustment on top of `p_visual`:
+- [x] Apply the existing visible-condition adjustment on top of `p_visual`:
   ```
   price = p_visual * condition_adjustment(condition_score, tire_score, damage_count)
   ```
@@ -274,14 +294,15 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 
 **Owned by another team member, built in Python Flask on a separate branch, merged into `main` once ready — not part of the backend/scraper workstream.**
 
-- [ ] **No upload picker, no mode choice** — the page opens straight into a live camera feed with Start / Stop / Submit controls (see Phase 2a); this replaces any drag-and-drop upload flow
-- [ ] Guide overlay during recording, prompting the user to move around the truck (loose guidance, not a rigid per-angle checklist — see Phase 2a)
-- [ ] Auto-snap indicator so the user can see photos being captured during the session
-- [ ] Submit sends both the snapped photos and the session video to the backend (Phase 5) in one request
-- [ ] Loading state after submit (show progress if possible)
-- [ ] Results view: headline is the **price range + confidence score** (not a single number), then the explainable breakdown (base price → condition → final), matching the "why this price" demo story
-- [ ] **"Needs more info" view**: distinct from an error state — this is a successful, intended outcome per the brief, so design it to look deliberate (not a crash/broken page), e.g. "we need a clearer shot of X" with a way to add the missing photo and retry
-- [ ] Basic error states (bad upload, API failure) — kept separate from the "needs more info" case above, since one is a system limitation being handled gracefully and the other is a genuine error
+- [x] **No upload picker, no mode choice** — the page opens straight into a live camera feed with Start / Stop / Submit controls (see Phase 2a); this replaces any drag-and-drop upload flow
+- [x] Guide overlay during recording, prompting the user to move around the truck (loose guidance, not a rigid per-angle checklist — see Phase 2a)
+- [x] Auto-snap indicator so the user can see photos being captured during the session
+- [x] Submit sends both the snapped photos and the session video to the backend (Phase 5) in one request
+- [x] Loading state after submit (show progress if possible)
+- [x] Results view: headline is the **price range + confidence score** (not a single number), then the explainable breakdown (base price → condition → final), matching the "why this price" demo story
+- [x] **"Needs more info" view**: distinct from an error state — this is a successful, intended outcome per the brief, so design it to look deliberate (not a crash/broken page), e.g. "we need a clearer shot of X" with a way to add the missing photo and retry
+- [x] Basic error states (bad upload, API failure) — kept separate from the "needs more info" case above, since one is a system limitation being handled gracefully and the other is a genuine error
+- [ ] **Open decision:** two frontend designs now exist against the same backend — `main`'s current frontend and the `UIv2` branch (which additionally has a dedicated `not_a_truck` view `main` currently lacks, but hardcodes `127.0.0.1:8000` instead of `main`'s LAN-dynamic backend origin). Pick one before the demo.
 
 ---
 
@@ -307,7 +328,7 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 
 ## Notes / Open Decisions
 
-- Vision API choice: TBD — pick based on available API credits
+- Vision API choice: `gpt-4o-mini` — validated against `gpt-4o` on 40 real listings (`backend/eval_vlm_accuracy.py`); mini won on model-family match (50% vs 38%) and year accuracy (52% vs 30%) at ~1/17th the per-image cost, so there's no case for the larger model on this task
 - DINO stack: pretrained DINOv2 + local FAISS cosine index; start with `dinov2_vitb14` and `IndexFlatIP`, only optimize if retrieval latency becomes a real issue
 - Scraper scope: if time-constrained, limit to 3-5 common truck models (F-150, Silverado, Ram 1500, etc.) rather than all trucks, for better comps density per bucket
 - Legal/ethical note: scrape respectfully (rate limits, robots.txt, no auth bypass) — this is a hackathon demo, not a production scraping operation
