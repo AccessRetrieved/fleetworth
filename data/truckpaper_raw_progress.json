@@ -39,8 +39,22 @@
     "pages_done": 38,
     "done": true
   },
+<<<<<<< HEAD
   "GMC Topkick": {
     "pages_done": 10,
+=======
+<<<<<<< HEAD
+  "Tow Truck": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Bucket Truck": {
+    "pages_done": 3,
+    "done": true
+=======
+  "Water Truck": {
+    "pages_done": 3,
+>>>>>>> 99148dd4af11105ac46905fc21b7f5afe5726345
     "done": true
   },
   "Chevrolet Kodiak": {
@@ -94,6 +108,7 @@
   "Cab Chassis Truck": {
     "pages_done": 35,
     "done": false
+<<<<<<< HEAD
   },
   "Volvo": {
     "pages_done": 6,
@@ -146,5 +161,9 @@
   "Asphalt Truck": {
     "pages_done": 3,
     "done": true
+=======
+>>>>>>> bc78f003937269cb67c110a7965fe71e6069582d
+>>>>>>> 3716be8c9f5b0655db283d74cf7cc7bd12302def
+>>>>>>> 99148dd4af11105ac46905fc21b7f5afe5726345
   }
 }
