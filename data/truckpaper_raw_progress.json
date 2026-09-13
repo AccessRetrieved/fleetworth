@@ -74,5 +74,13 @@
   "Kenworth T370": {
     "pages_done": 3,
     "done": true
+  },
+  "Tow Truck": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Bucket Truck": {
+    "pages_done": 3,
+    "done": true
   }
 }
