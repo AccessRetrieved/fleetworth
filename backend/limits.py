@@ -23,7 +23,13 @@ BLUR_VARIANCE_THRESHOLD = 100.0  # Laplacian variance below this = too blurry to
 NOT_TRUCK_CONFIDENCE_THRESHOLD = 0.3  # extraction confidence below this counts as a "not a truck" vote
 LOW_CONFIDENCE_THRESHOLD = 0.35  # fused-pipeline-wide floor before we refuse to price
 MIN_USABLE_PHOTOS = 3  # coverage proxy — PLAN.md expects 3-7 photos per session
-NEAR_DUPLICATE_HAMMING_THRESHOLD = 6  # out of 64 bits — below this, treat as the same shot repeated
+NEAR_DUPLICATE_HAMMING_THRESHOLD = 12  # out of 64 bits — below this, treat as the same shot repeated
+# Raised from 6: real camera photos (auto-exposure/autofocus drift, hand
+# shake) vary more between "the same shot twice" than the synthetic test
+# used to pick 6 accounted for, so real near-duplicates were slipping
+# through uncaught. Still a judgment call pending a real duplicate-photo
+# data point — a confirmed genuinely-different photo has scored 20, so
+# there's room between 12 and that to tighten further once we see one.
 
 
 def blur_variance(image_bytes: bytes) -> float:
