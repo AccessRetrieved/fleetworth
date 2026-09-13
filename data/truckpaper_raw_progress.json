@@ -22,5 +22,37 @@
   "Spreader Truck": {
     "pages_done": 3,
     "done": true
+  },
+  "International": {
+    "pages_done": 18,
+    "done": true
+  },
+  "4300": {
+    "pages_done": 12,
+    "done": true
+  },
+  "9900": {
+    "pages_done": 6,
+    "done": true
+  },
+  "Freightliner": {
+    "pages_done": 5,
+    "done": true
+  },
+  "Columbia": {
+    "pages_done": 12,
+    "done": false
+  },
+  "International 4300": {
+    "pages_done": 11,
+    "done": true
+  },
+  "International 9900": {
+    "pages_done": 2,
+    "done": true
+  },
+  "Freightliner Columbia": {
+    "pages_done": 100,
+    "done": false
   }
 }
