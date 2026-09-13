@@ -46,5 +46,21 @@
   "Chevrolet Kodiak": {
     "pages_done": 55,
     "done": false
+  },
+  "Freightliner 114SD": {
+    "pages_done": 36,
+    "done": true
+  },
+  "Freightliner 108SD": {
+    "pages_done": 10,
+    "done": true
+  },
+  "International HV": {
+    "pages_done": 17,
+    "done": true
+  },
+  "International MV": {
+    "pages_done": 56,
+    "done": false
   }
 }
