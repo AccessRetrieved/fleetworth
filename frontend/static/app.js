@@ -1,10 +1,11 @@
 const GUIDE_STEPS = [
-  { title: "Start wide", instruction: "Frame the whole truck from a few steps back.", tip: "Keep all body edges inside the guide." },
-  { title: "Walk to the front", instruction: "Show the grille, headlights, bumper, and hood.", tip: "Pause briefly when the front is clear." },
-  { title: "Sweep a side", instruction: "Walk along either side so the cab, bed, and wheels are visible.", tip: "Hold the camera parallel to reveal panel damage." },
-  { title: "Circle the rear", instruction: "Show the tailgate, rear bumper, and bed corners.", tip: "Avoid cutting off the bumper or taillights." },
-  { title: "Get the tires", instruction: "Move close enough to show tread, sidewall, and wheel condition.", tip: "A clear tire view is especially valuable." },
-  { title: "Cover the other side", instruction: "Collect any useful exterior view not yet shown.", tip: "The guide is flexible—good coverage matters more than exact angles." },
+  { title: "Start with a wider view of the truck.", instruction: "Walk around the truck at a steady pace." },
+  { title: "Walk around the truck at a steady pace.", instruction: "Keep the body in frame as you move." },
+  { title: "Show both sides if you can.", instruction: "A full exterior sweep helps the appraisal." },
+  { title: "Get a closer view of the tires.", instruction: "A clear tire view improves the estimate." },
+  { title: "Pause briefly on any visible damage.", instruction: "Hold steady if rust, dents, or missing parts are visible." },
+  { title: "Hold steady for a clearer view.", instruction: "Give the camera a moment before you keep moving." },
+  { title: "Looking good—capture a few more details or stop when ready.", instruction: "Broad exterior coverage matters more than a perfect set of angles." },
 ];
 
 const MIN_PHOTOS = 3;
@@ -13,7 +14,6 @@ const ANALYSIS_INTERVAL_MS = 600;
 const AUTO_CAPTURE_DELAY_MS = 6000;
 const MIN_VEHICLE_SCORE = 0.42;
 const VEHICLE_CLASSES = new Set(["truck", "car", "bus"]);
-
 const preview = document.querySelector("#cameraPreview");
 const detectionOverlay = document.querySelector("#detectionOverlay");
 const captureCanvas = document.querySelector("#captureCanvas");
@@ -26,28 +26,71 @@ const captureButton = document.querySelector("#captureButton");
 const autoCapture = document.querySelector("#autoCapture");
 const resetButton = document.querySelector("#resetButton");
 const submitButton = document.querySelector("#submitButton");
+const continueButton = document.querySelector("#continueButton");
+const retryCameraButton = document.querySelector("#retryCameraButton");
 const actionMessage = document.querySelector("#actionMessage");
 const frameStatus = document.querySelector("#frameStatus");
 const frameStatusText = document.querySelector("#frameStatusText");
 const captureFlash = document.querySelector("#captureFlash");
+const captureToast = document.querySelector("#captureToast");
 const guideOverlay = document.querySelector("#guideOverlay");
 const guideOverlayStep = document.querySelector("#guideOverlayStep");
 const guideOverlayTitle = document.querySelector("#guideOverlayTitle");
 const guideOverlayInstruction = document.querySelector("#guideOverlayInstruction");
-const guideOverlayTip = document.querySelector("#guideOverlayTip");
-const guideDots = document.querySelector("#guideDots");
 const recordingTime = document.querySelector("#recordingTime");
 const recordingBadge = document.querySelector("#recordingBadge");
 const sessionState = document.querySelector("#sessionState");
 const captureGrid = document.querySelector("#captureGrid");
+const captureStrip = document.querySelector("#captureStrip");
+const captureCount = document.querySelector("#captureCount");
+const coverageChip = document.querySelector("#coverageChip");
 const reviewSummary = document.querySelector("#reviewSummary");
+const coverageSummary = document.querySelector("#coverageSummary");
 const submitStatus = document.querySelector("#submitStatus");
 const submitStatusIcon = document.querySelector("#submitStatusIcon");
 const submitHeading = document.querySelector("#submitHeading");
-const resultPanel = document.querySelector("#resultPanel");
+const resultPanel = document.querySelector("#resultScreen");
 const sessionVideoReview = document.querySelector("#sessionVideoReview");
 const sessionPlayback = document.querySelector("#sessionPlayback");
 const sessionVideoMeta = document.querySelector("#sessionVideoMeta");
+const permissionCard = document.querySelector("#permissionCard");
+const readyCopy = document.querySelector("#readyCopy");
+const appShell = document.querySelector(".app-shell");
+const demoBadge = document.querySelector("#demoBadge");
+const demoHelper = document.querySelector("#demoHelper");
+const previewResultsButton = document.querySelector("#previewResultsButton");
+const demoPreviewSlot = document.querySelector("#demoPreviewSlot");
+const uploadPhotosButton = document.querySelector("#uploadPhotosButton");
+const uploadVideoButton = document.querySelector("#uploadVideoButton");
+const photoFileInput = document.querySelector("#photoFileInput");
+const videoFileInput = document.querySelector("#videoFileInput");
+
+const DEMO_MODE = document.body.dataset.demoMode === "true";
+const DEMO_PRICED = {
+  status: "priced",
+  price_range: [16200, 21900],
+  confidence: 0.72,
+  breakdown: {
+    make: "Ford",
+    model: "F-150",
+    year_estimate: "2018–2020",
+    condition: "fair",
+    tire_condition: "worn",
+    damage: ["Rust on rear fender", "Cracked side mirror"],
+    views_used: 5,
+    base_price: 26400,
+    visual_comps: { visual_base_price: 26400, neighbors_used: 12, top_similarity: 0.91 },
+  },
+};
+const DEMO_NEEDS_INFO = {
+  status: "needs_more_info",
+  reason: "no clear view of tires",
+  message: "Can't assess tire condition — please add a close-up photo of the tires.",
+};
+const DEMO_NOT_A_TRUCK = {
+  status: "not_a_truck",
+  message: "This doesn't look like a real photo of a truck.",
+};
 
 const captures = [];
 let cameraStream;
@@ -56,6 +99,7 @@ let isOpeningCamera = false;
 let isCapturing = false;
 let isRecording = false;
 let isPaused = false;
+let pendingStart = false;
 let detector;
 let detectorMode = "loading";
 let mediaRecorder;
@@ -67,17 +111,42 @@ let recordingStartedAt;
 let elapsedBeforePause = 0;
 let analysisTimer;
 let clockTimer;
+let toastTimer;
+let analysisStageTimer;
 let stableSince = 0;
 let suggestionIndex = 0;
+let forcedGuide = null;
 let isSubmitting = false;
-let currentAssessment = { ready: false, type: "loading", message: "Loading framing assistant…", confidence: 0 };
+let discardingSession = false;
+let cameraDenied = false;
+let captureSource = "live"; // live | photos | video
+let currentAssessment = { ready: false, type: "loading", message: "Loading framing assistant…", confidence: 0, quality: null };
+let lastQuality = null;
+
+function setScreen(name) {
+  appShell.dataset.screen = name;
+}
+
+function coverageLabel(count = captures.length) {
+  if (count <= 0) return "Just started";
+  if (count < MIN_PHOTOS) return "Building coverage";
+  if (count < 5) return "Good exterior coverage";
+  return "Strong coverage";
+}
+
+function photoState(capture) {
+  if (capture.blurry) return "Blurry / soft";
+  if (capture.helpful) return "Helpful detail";
+  if (capture.limited) return "Limited coverage";
+  return "Ready";
+}
 
 function guideIndex() {
   return suggestionIndex;
 }
 
 function currentGuide() {
-  return GUIDE_STEPS[guideIndex()];
+  return forcedGuide || GUIDE_STEPS[guideIndex()];
 }
 
 function setFrameStatus(type, message) {
@@ -94,6 +163,12 @@ function hideCameraMessage() {
   cameraMessage.classList.add("is-hidden");
 }
 
+function setPermissionState(denied) {
+  cameraDenied = denied;
+  permissionCard.hidden = !denied;
+  readyCopy.hidden = denied;
+}
+
 function setSessionState(label, state = "ready") {
   sessionState.className = `session-state is-${state}`;
   sessionState.innerHTML = `<span class="state-dot"></span>${label}`;
@@ -104,19 +179,7 @@ function formatDuration(milliseconds) {
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function renderGuideDots() {
-  guideDots.replaceChildren();
-  GUIDE_STEPS.forEach((step, index) => {
-    const dot = createElement("li", "guide-dot");
-    dot.classList.toggle("is-done", index < guideIndex());
-    dot.classList.toggle("is-current", index === guideIndex());
-    dot.title = step.title;
-    guideDots.append(dot);
-  });
-}
-
 function renderSessionControls() {
-  stopButton.textContent = isRecording ? "Save" : "Stop session";
   pauseButton.textContent = isPaused ? "Resume" : "Pause";
   pauseButton.setAttribute("aria-pressed", String(isPaused));
 }
@@ -125,24 +188,36 @@ function renderCurrentGuide() {
   const guide = currentGuide();
   guideOverlay.hidden = !isRecording;
   guideOverlay.classList.toggle("is-paused", isPaused);
-  guideOverlayStep.textContent = `Suggestion ${guideIndex() + 1} of ${GUIDE_STEPS.length}`;
+  guideOverlayStep.textContent = "Guidance";
   guideOverlayTitle.textContent = guide.title;
   guideOverlayInstruction.textContent = guide.instruction;
-  guideOverlayTip.textContent = guide.tip;
-  renderGuideDots();
+}
+
+function renderCaptureStrip() {
+  captureStrip.replaceChildren();
+  captures.forEach((capture, index) => {
+    const thumb = document.createElement("div");
+    thumb.className = `capture-thumb${capture.blurry ? " is-blurry" : ""}`;
+    const image = new Image();
+    image.src = capture.url;
+    image.alt = `Captured view ${index + 1}`;
+    thumb.append(image);
+    if (capture.blurry) thumb.append(createElement("span", "capture-thumb-flag", "Soft"));
+    captureStrip.append(thumb);
+  });
 }
 
 function renderCaptures() {
   captureGrid.replaceChildren();
   captures.forEach((capture, index) => {
     const card = document.createElement("article");
-    card.className = "capture-card";
+    card.className = `capture-card${capture.blurry ? " is-blurry" : ""}`;
     const image = new Image();
     image.src = capture.url;
     image.alt = `Snapped truck photo ${index + 1}`;
     const label = document.createElement("span");
     label.className = "capture-card-label";
-    label.textContent = `Photo ${index + 1}`;
+    label.textContent = `View ${index + 1} · ${photoState(capture)}`;
     const remove = document.createElement("button");
     remove.className = "remove-button";
     remove.type = "button";
@@ -151,16 +226,6 @@ function renderCaptures() {
     card.append(image, label, remove);
     captureGrid.append(card);
   });
-
-  for (let index = captures.length; index < TARGET_PHOTOS; index += 1) {
-    const card = document.createElement("article");
-    card.className = "capture-card is-empty";
-    const number = createElement("span", "capture-slot-number", String(index + 1));
-    const label = createElement("strong", "capture-slot-label", index < MIN_PHOTOS ? "Required" : "Optional");
-    const detail = createElement("small", "capture-slot-detail", index < MIN_PHOTOS ? "minimum" : "coverage");
-    card.append(number, label, detail);
-    captureGrid.append(card);
-  }
 }
 
 function setSubmitStatus(tone, message) {
@@ -169,33 +234,51 @@ function setSubmitStatus(tone, message) {
   submitHeading.textContent = message;
 }
 
+function renderCoverageSummary() {
+  const usable = captures.filter((capture) => !capture.blurry).length;
+  const sawVehicle = captures.some((capture) => capture.detectorConfidence >= MIN_VEHICLE_SCORE);
+  const sawTires = captures.some((capture) => capture.helpful);
+  coverageSummary.replaceChildren(
+    createElement("h2", "", "Coverage summary"),
+    createElement("p", "coverage-item is-ok", `${usable} usable exterior ${usable === 1 ? "view" : "views"}`),
+    createElement("p", sawVehicle ? "coverage-item is-ok" : "coverage-item is-warn", sawVehicle ? "Vehicle details visible" : "Another wide exterior view may help identification"),
+    createElement("p", sawTires ? "coverage-item is-ok" : "coverage-item is-warn", sawTires ? "Tire detail captured" : "A clear tire close-up may improve confidence"),
+  );
+}
+
 function renderSubmitStatus(count, enoughPhotos, ready) {
-  const shortfall = MIN_PHOTOS - count;
-  if (ready) setSubmitStatus("ready", "Capture evidence is ready");
-  else if (sessionVideo) setSubmitStatus("alert", "Restart to collect enough photos");
-  else if (isPaused) setSubmitStatus("alert", enoughPhotos ? "Unpause or save the session" : "Unpause to collect enough photos");
-  else if (isRecording) setSubmitStatus("neutral", enoughPhotos ? "Save the session when you finish" : `${shortfall} more ${shortfall === 1 ? "photo" : "photos"} needed`);
-  else setSubmitStatus("neutral", "Start a session to begin");
+  if (ready) setSubmitStatus("ready", "Ready to estimate from the captured views.");
+  else if (sessionVideo && !enoughPhotos) setSubmitStatus("alert", "Continue capturing for broader exterior coverage.");
+  else if (isPaused) setSubmitStatus("alert", "Unpause to keep capturing.");
+  else if (isRecording) setSubmitStatus("neutral", enoughPhotos ? "Stop when you have useful exterior coverage." : "Keep walking — coverage is still building.");
+  else setSubmitStatus("neutral", "Start a walkaround to begin.");
 }
 
 function renderReview() {
   const count = captures.length;
   const enoughPhotos = count >= MIN_PHOTOS;
-  const ready = enoughPhotos && Boolean(sessionVideo);
-  reviewSummary.textContent = isRecording
-    ? `${count} snapped ${count === 1 ? "photo" : "photos"} so far${isPaused ? " · paused" : ""}.`
-    : count
-      ? `${count} ${count === 1 ? "photo" : "photos"} captured${enoughPhotos ? " · minimum met" : ` · ${MIN_PHOTOS - count} more needed`}.`
-      : "Start a session to collect 3–7 photos.";
+  const ready = captureSource === "photos"
+    ? enoughPhotos
+    : enoughPhotos && Boolean(sessionVideo);
+  const label = coverageLabel(count);
+  captureCount.textContent = `${count} ${count === 1 ? "view" : "views"}`;
+  coverageChip.textContent = label;
+  reviewSummary.textContent = captureSource === "photos"
+    ? `${label}. Uploaded exterior photos will be used to estimate value.`
+    : `${label}. We’ll use the clearest exterior views to estimate value.`;
   renderSubmitStatus(count, enoughPhotos, ready);
+  renderCoverageSummary();
   resetButton.disabled = !captures.length && !sessionVideo && !isRecording;
   submitButton.disabled = !ready || isRecording || isSubmitting;
+  continueButton.disabled = isSubmitting || captureSource === "photos";
+  continueButton.hidden = captureSource === "photos";
   sessionVideoReview.hidden = !sessionVideoUrl;
   if (sessionVideoUrl) {
     if (sessionPlayback.src !== sessionVideoUrl) sessionPlayback.src = sessionVideoUrl;
     sessionVideoMeta.textContent = formatDuration(sessionDurationMs);
   }
   renderCaptures();
+  renderCaptureStrip();
 }
 
 function renderAll() {
@@ -205,7 +288,8 @@ function renderAll() {
 }
 
 function clearResult() {
-  resultPanel.className = "result-panel is-hidden";
+  window.clearInterval(analysisStageTimer);
+  resultPanel.className = "light-screen result-screen is-hidden";
   resultPanel.replaceChildren();
 }
 
@@ -216,38 +300,11 @@ function createElement(tag, className, text) {
   return element;
 }
 
-const BACKEND_PORT = 8000; // uvicorn's port (see backend/README.md)
-
-function apiOrigin() {
-  // The backend origin, for both the /predict call and resolving the
-  // backend-relative annotated_damage_photos paths. If data-predict-endpoint
-  // is set to a real URL, honor it (e.g. a backend on a different host);
-  // otherwise default to whatever host/IP loaded this page, on
-  // BACKEND_PORT -- this way a phone or laptop that opens
-  // http://<this-machine's-LAN-IP>:5000/ automatically talks to the backend
-  // at that same IP, with no per-device configuration.
-  const endpoint = document.body.dataset.predictEndpoint || "";
-  if (endpoint) {
-    try {
-      return new URL(endpoint, window.location.href).origin;
-    } catch {
-      // fall through to the dynamic default below
-    }
-  }
-  return `${window.location.protocol}//${window.location.hostname}:${BACKEND_PORT}`;
-}
-
-function showResult(type, title, message, content) {
-  const labels = { priced: "Estimate ready", "needs-info": "More evidence needed", loading: "Analyzing evidence", ready: "Handoff ready", error: "Something went wrong" };
-  resultPanel.className = `result-panel is-${type}`;
-  resultPanel.setAttribute("aria-busy", String(type === "loading"));
-  resultPanel.replaceChildren(
-    createElement("p", "eyebrow", labels[type] || "Fleetworth"),
-    createElement("h2", "", title),
-    createElement("p", "result-intro", message),
-  );
-  if (content) resultPanel.append(content);
-  resultPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+function showCaptureToast(message = "View captured.") {
+  captureToast.textContent = message;
+  captureToast.hidden = false;
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => { captureToast.hidden = true; }, 1400);
 }
 
 function getActiveCameraId() {
@@ -330,17 +387,17 @@ function measureFrameQuality() {
 }
 
 function assessFallbackFrame(quality) {
-  if (quality.isDark) return { ready: false, type: "warning", message: "Too dark — add light or change angle", confidence: 0 };
-  if (quality.isBright) return { ready: false, type: "warning", message: "Too much glare — change angle", confidence: 0 };
-  if (quality.isBlurry) return { ready: false, type: "warning", message: "Hold steady — image is blurry", confidence: 0 };
-  return { ready: true, type: "ready", message: "Frame is clear — manually confirm the truck fits the guide", confidence: 0 };
+  if (quality.isDark) return { ready: false, type: "warning", message: "Too dark — add light or change angle", confidence: 0, quality };
+  if (quality.isBright) return { ready: false, type: "warning", message: "Too much glare — change angle", confidence: 0, quality };
+  if (quality.isBlurry) return { ready: false, type: "warning", message: "Hold steady — image is blurry", confidence: 0, quality };
+  return { ready: true, type: "ready", message: "Hold steady for a clearer view", confidence: 0, quality };
 }
 
 function assessVehicleFrame(predictions, quality) {
   const vehicle = predictions.filter((item) => VEHICLE_CLASSES.has(item.class) && item.score >= MIN_VEHICLE_SCORE).sort((a, b) => b.score - a.score)[0];
   if (!vehicle) {
     clearDetectionOverlay();
-    return { ready: false, type: "warning", message: "No truck detected — point the camera at the vehicle", confidence: 0 };
+    return { ready: false, type: "warning", message: "Keep the truck in frame", confidence: 0, quality };
   }
   drawDetection(vehicle);
   const [x, y, width, height] = vehicle.bbox;
@@ -348,12 +405,12 @@ function assessVehicleFrame(predictions, quality) {
   const frameHeight = preview.videoHeight;
   const coverage = (width * height) / (frameWidth * frameHeight);
   const clipped = x < frameWidth * 0.018 || y < frameHeight * 0.018 || x + width > frameWidth * 0.982 || y + height > frameHeight * 0.982;
-  if (clipped || coverage > 0.84) return { ready: false, type: "warning", message: "Step back — part of the truck is cut off", confidence: vehicle.score };
-  if (coverage < 0.13) return { ready: false, type: "warning", message: "Move closer — the truck is too small", confidence: vehicle.score };
-  if (quality.isDark) return { ready: false, type: "warning", message: "Truck found, but the frame is too dark", confidence: vehicle.score };
-  if (quality.isBright) return { ready: false, type: "warning", message: "Truck found, but glare is hiding details", confidence: vehicle.score };
-  if (quality.isBlurry) return { ready: false, type: "warning", message: "Truck found — hold the camera steady", confidence: vehicle.score };
-  return { ready: true, type: "ready", message: `Truck detected · ${Math.round(vehicle.score * 100)}% confidence`, confidence: vehicle.score };
+  if (clipped || coverage > 0.84) return { ready: false, type: "warning", message: "Step back — part of the truck is cut off", confidence: vehicle.score, quality };
+  if (coverage < 0.13) return { ready: false, type: "warning", message: "Move closer — the truck is too small", confidence: vehicle.score, quality };
+  if (quality.isDark) return { ready: false, type: "warning", message: "Truck found, but the frame is too dark", confidence: vehicle.score, quality };
+  if (quality.isBright) return { ready: false, type: "warning", message: "Truck found, but glare is hiding details", confidence: vehicle.score, quality };
+  if (quality.isBlurry) return { ready: false, type: "warning", message: "Hold steady for a clearer view", confidence: vehicle.score, quality };
+  return { ready: true, type: "ready", message: "Looking good — keep walking around the truck", confidence: vehicle.score, quality };
 }
 
 async function analyzeCurrentFrame() {
@@ -363,15 +420,16 @@ async function analyzeCurrentFrame() {
   }
   try {
     const quality = measureFrameQuality();
+    lastQuality = quality;
     if (detectorMode === "ready" && detector) currentAssessment = assessVehicleFrame(await detector.detect(preview, 10, 0.35), quality);
-    else if (detectorMode === "loading") currentAssessment = { ready: false, type: "loading", message: "Loading truck detector…", confidence: 0 };
+    else if (detectorMode === "loading") currentAssessment = { ready: false, type: "loading", message: "Loading truck detector…", confidence: 0, quality };
     else {
       clearDetectionOverlay();
       currentAssessment = assessFallbackFrame(quality);
     }
     updateCaptureReadiness();
   } catch {
-    currentAssessment = { ready: false, type: "error", message: "Framing check paused — try again", confidence: 0 };
+    currentAssessment = { ready: false, type: "error", message: "Framing check paused — try again", confidence: 0, quality: lastQuality };
     updateCaptureReadiness();
   }
   analysisTimer = window.setTimeout(analyzeCurrentFrame, ANALYSIS_INTERVAL_MS);
@@ -381,7 +439,7 @@ function updateCaptureReadiness() {
   if (isPaused) {
     captureButton.disabled = true;
     stableSince = 0;
-    setFrameStatus("warning", "Session paused — resume to capture");
+    setFrameStatus("warning", "Paused — resume to capture");
     return;
   }
   const canSnap = isRecording && currentAssessment.ready && captures.length < TARGET_PHOTOS && !isCapturing;
@@ -394,11 +452,11 @@ function updateCaptureReadiness() {
   if (!stableSince) stableSince = Date.now();
   const stableFor = Date.now() - stableSince;
   if (autoCapture.checked && stableFor >= AUTO_CAPTURE_DELAY_MS) captureFrame({ automatic: true });
-  else if (autoCapture.checked) setFrameStatus("ready", `Hold steady · auto-snapping in ${Math.max(1, Math.ceil((AUTO_CAPTURE_DELAY_MS - stableFor) / 1000))}`);
+  else if (autoCapture.checked) setFrameStatus("ready", "Hold steady for a clearer view");
 }
 
 function chooseRecorderOptions() {
-  const types = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm", "video/mp4"];
+  const types = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/mp4"];
   const mimeType = types.find((type) => MediaRecorder.isTypeSupported(type));
   return mimeType ? { mimeType } : undefined;
 }
@@ -444,13 +502,13 @@ function stopClock() {
 
 async function openCamera() {
   if (!navigator.mediaDevices?.getUserMedia) {
+    setPermissionState(true);
     showCameraMessage("This browser does not support webcam access.");
     setFrameStatus("error", "Camera API unavailable");
     return;
   }
   if (isOpeningCamera) return;
   isOpeningCamera = true;
-  startButton.disabled = true;
   cameraSelect.disabled = true;
   showCameraMessage("Requesting camera access…");
   const requestedId = cameraSelect.value;
@@ -461,6 +519,7 @@ async function openCamera() {
   } catch (error) {
     if (hasLiveCamera()) {
       hideCameraMessage();
+      setPermissionState(false);
       activeCameraId = getActiveCameraId();
       await refreshCameraList(activeCameraId).catch(() => activeCameraId);
       actionMessage.textContent = "That camera could not be selected, so the current camera is still active.";
@@ -471,11 +530,13 @@ async function openCamera() {
       return;
     }
     const denied = error.name === "NotAllowedError" || error.name === "SecurityError";
-    showCameraMessage(denied ? "Camera permission was not granted. Allow access, then try again." : "We could not open that camera.");
+    setPermissionState(denied || true);
+    hideCameraMessage();
     setFrameStatus("error", denied ? "Camera permission needed" : "Camera unavailable");
     startButton.disabled = false;
     isOpeningCamera = false;
     cameraSelect.disabled = cameraSelect.options.length <= 1;
+    pendingStart = false;
     return;
   }
 
@@ -484,6 +545,7 @@ async function openCamera() {
   preview.srcObject = nextStream;
   previousStream?.getTracks().forEach((track) => track.stop());
   hideCameraMessage();
+  setPermissionState(false);
 
   try {
     await preview.play();
@@ -496,8 +558,6 @@ async function openCamera() {
       cameraSelect.disabled = cameraSelect.options.length <= 1;
       return;
     }
-    // Safari can reject play() during a source transition even while muted
-    // autoplay has already started the live stream. A live track is usable.
   }
 
   activeCameraId = await refreshCameraList(requestedId || getActiveCameraId()).catch(() => requestedId || getActiveCameraId());
@@ -507,10 +567,28 @@ async function openCamera() {
   startAnalysisLoop();
   isOpeningCamera = false;
   cameraSelect.disabled = cameraSelect.options.length <= 1 || isRecording;
+  if (pendingStart) {
+    pendingStart = false;
+    startSession();
+  }
+}
+
+function startWalkaround() {
+  if (isRecording) {
+    setScreen("capturing");
+    return;
+  }
+  if (!cameraStream) {
+    pendingStart = true;
+    openCamera();
+    return;
+  }
+  startSession();
 }
 
 function startSession() {
   if (!cameraStream) {
+    pendingStart = true;
     openCamera();
     return;
   }
@@ -532,34 +610,45 @@ function startSession() {
   }
   mediaRecorder.addEventListener("dataavailable", (event) => { if (event.data.size) mediaChunks.push(event.data); });
   mediaRecorder.addEventListener("stop", () => {
-    const type = mediaRecorder.mimeType || "video/webm";
-    sessionDurationMs = sessionElapsedMs();
-    sessionVideo = new Blob(mediaChunks, { type });
-    sessionVideoUrl = URL.createObjectURL(sessionVideo);
     isRecording = false;
     isPaused = false;
     stopClock();
     recordingBadge.classList.add("is-hidden");
-    startButton.disabled = true;
     pauseButton.disabled = true;
     stopButton.disabled = true;
     cameraSelect.disabled = cameraSelect.options.length <= 1;
-    setSessionState("Session saved", "complete");
-    actionMessage.textContent = captures.length >= MIN_PHOTOS ? "Session video saved locally. Review the evidence, then submit when ready." : `Session saved without enough photos. Discard it and restart to collect ${MIN_PHOTOS} clear photos in one continuous session.`;
+    if (discardingSession) {
+      discardingSession = false;
+      mediaChunks = [];
+      sessionVideo = undefined;
+      sessionDurationMs = 0;
+      startButton.disabled = !cameraStream;
+      return;
+    }
+    const type = mediaRecorder.mimeType || "video/webm";
+    sessionDurationMs = sessionElapsedMs();
+    sessionVideo = new Blob(mediaChunks, { type });
+    sessionVideoUrl = URL.createObjectURL(sessionVideo);
+    startButton.disabled = true;
+    setSessionState("Walkaround saved", "complete");
+    setScreen("review");
+    actionMessage.textContent = "";
     renderAll();
   }, { once: true });
   mediaRecorder.start(1000);
   isRecording = true;
   isPaused = false;
-  suggestionIndex = 0;
+  captureSource = "live";
+  if (!forcedGuide) suggestionIndex = captures.length ? Math.min(captures.length, GUIDE_STEPS.length - 1) : 0;
   startButton.disabled = true;
   pauseButton.disabled = typeof mediaRecorder.pause !== "function";
   stopButton.disabled = false;
   cameraSelect.disabled = true;
   recordingBadge.classList.remove("is-hidden");
-  setSessionState("Recording live session", "recording");
+  setSessionState("Capturing", "recording");
   actionMessage.textContent = "";
   startClock();
+  setScreen("capturing");
   renderAll();
 }
 
@@ -570,8 +659,8 @@ function togglePause() {
     isPaused = false;
     resumeClock();
     recordingBadge.classList.remove("is-hidden");
-    setSessionState("Recording live session", "recording");
-    actionMessage.textContent = "Session resumed. Keep moving around the truck.";
+    setSessionState("Capturing", "recording");
+    actionMessage.textContent = "Keep moving around the truck.";
   } else {
     if (mediaRecorder.state !== "recording") return;
     mediaRecorder.pause();
@@ -579,10 +668,8 @@ function togglePause() {
     pauseClock();
     stableSince = 0;
     recordingBadge.classList.add("is-hidden");
-    setSessionState("Session paused", "paused");
-    actionMessage.textContent = captures.length >= MIN_PHOTOS
-      ? "Session paused. Resume to keep filming, or save it."
-      : `Session paused with ${captures.length} of ${MIN_PHOTOS} required photos. Resume to collect more.`;
+    setSessionState("Paused", "paused");
+    actionMessage.textContent = "Paused. Resume when you are ready.";
   }
   renderAll();
   updateCaptureReadiness();
@@ -606,14 +693,29 @@ async function captureFrame({ automatic = false } = {}) {
   captureCanvas.getContext("2d").drawImage(preview, 0, 0, captureCanvas.width, captureCanvas.height);
   try {
     const blob = await canvasToBlob(captureCanvas);
-    captures.push({ id: crypto.randomUUID?.() || `${Date.now()}-${captures.length}`, blob, url: URL.createObjectURL(blob), capturedAt: new Date().toISOString(), width: captureCanvas.width, height: captureCanvas.height, detectorConfidence: currentAssessment.confidence });
+    const quality = currentAssessment.quality || lastQuality;
+    const helpful = /tire/i.test(currentGuide().title + currentGuide().instruction);
+    captures.push({
+      id: crypto.randomUUID?.() || `${Date.now()}-${captures.length}`,
+      blob,
+      url: URL.createObjectURL(blob),
+      capturedAt: new Date().toISOString(),
+      width: captureCanvas.width,
+      height: captureCanvas.height,
+      detectorConfidence: currentAssessment.confidence,
+      blurry: Boolean(quality?.isBlurry),
+      limited: currentAssessment.confidence > 0 && currentAssessment.confidence < 0.55,
+      helpful,
+    });
+    forcedGuide = null;
     suggestionIndex = Math.min(suggestionIndex + 1, GUIDE_STEPS.length - 1);
     captureFlash.classList.remove("is-active");
     void captureFlash.offsetWidth;
     captureFlash.classList.add("is-active");
+    showCaptureToast(quality?.isBlurry ? "View captured — flagged as soft." : "View captured.");
     actionMessage.textContent = captures.length === TARGET_PHOTOS
-      ? `Photo ${captures.length} snapped${automatic ? " automatically" : ""}. Maximum reached—finish the walkaround, then stop the session.`
-      : `Photo ${captures.length} snapped${automatic ? " automatically" : ""}. Move to another useful view.`;
+      ? "Strong coverage. Stop when you are ready."
+      : automatic ? "Keep walking for another useful view." : "";
     renderAll();
   } catch {
     actionMessage.textContent = "That frame could not be saved. Hold steady and try again.";
@@ -629,7 +731,6 @@ function removeCapture(id) {
   if (index === -1) return;
   URL.revokeObjectURL(captures[index].url);
   captures.splice(index, 1);
-  actionMessage.textContent = isRecording ? "Photo removed. Continue the live session for another frame." : "Photo removed. If fewer than three remain, discard this session and record a new walkaround.";
   renderAll();
 }
 
@@ -644,146 +745,430 @@ function buildManifest() {
 }
 
 function buildFormData() {
-  if (!sessionVideo || captures.length < MIN_PHOTOS) return null;
+  if (captures.length < MIN_PHOTOS) return null;
+  if (captureSource !== "photos" && !sessionVideo) return null;
   const manifest = buildManifest();
   const formData = new FormData();
   formData.append("manifest", new Blob([JSON.stringify(manifest)], { type: "application/json" }), "manifest.json");
   captures.forEach((capture, index) => formData.append("photos", capture.blob, `capture-${index + 1}.jpg`));
-  formData.append("video", sessionVideo, sessionVideoFilename());
+  if (sessionVideo) formData.append("video", sessionVideo, sessionVideoFilename());
   return { formData, manifest };
 }
 
-function formatMoney(value) {
-  if (value === null || value === undefined || value === "") return "—";
-  const amount = Number(value);
-  return Number.isFinite(amount) ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(amount) : "—";
+function apiOrigin() {
+  const endpoint = document.body.dataset.predictEndpoint || "";
+  try {
+    return endpoint ? new URL(endpoint).origin : "";
+  } catch {
+    return "";
+  }
 }
 
-function appendValuationStep(container, label, value, isFinal = false) {
-  const step = createElement("div", `valuation-step${isFinal ? " is-final" : ""}`);
-  step.append(createElement("small", "", label), createElement("strong", "", value));
-  container.append(step);
+function evidenceImageUrl(item) {
+  if (!item) return "";
+  if (item.url) return item.url;
+  const path = item.path || "";
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+  const origin = apiOrigin();
+  return origin ? `${origin}${path.startsWith("/") ? path : `/${path}`}` : path;
+}
+
+function renderEvidenceGallery(response) {
+  const items = Array.isArray(response.evidence) ? response.evidence : [];
+  if (!items.length) return null;
+
+  const section = createElement("section", "evidence-card evidence-gallery");
+  section.append(createElement("h2", "", "What the model saw"));
+  section.append(createElement(
+    "p",
+    "result-copy",
+    response.source === "video_keyframes"
+      ? "These are the key frames pulled from your video. Red boxes mark damage the model localized on that frame."
+      : "These are the exterior views used for the appraisal. Red boxes mark damage the model localized on that frame.",
+  ));
+
+  const grid = createElement("div", "evidence-grid");
+  items.forEach((item, index) => {
+    const card = createElement("article", "evidence-frame");
+    const url = evidenceImageUrl(item);
+    if (url) {
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = `Evidence frame ${index + 1}`;
+      img.loading = "lazy";
+      card.append(img);
+    }
+
+    const meta = createElement("div", "evidence-frame-meta");
+    const identity = [item.make, item.model].filter(Boolean).join(" ");
+    const title = identity || (item.is_truck === false ? "Not identified as a truck" : `Frame ${index + 1}`);
+    meta.append(createElement("p", "evidence-frame-title", title));
+    if (item.year_estimate) {
+      meta.append(createElement("p", "evidence-frame-copy", `Year · ${item.year_estimate}`));
+    }
+    if (item.condition) {
+      meta.append(createElement("p", "evidence-frame-copy", `Condition · ${titleCase(item.condition)}`));
+    }
+    const damage = Array.isArray(item.damage) ? item.damage.filter(Boolean) : [];
+    if (damage.length) {
+      const list = createElement("ul", "damage-list");
+      damage.forEach((d) => list.append(createElement("li", "", d)));
+      meta.append(list);
+    } else {
+      meta.append(createElement("p", "evidence-frame-copy", item.annotated ? "Damage boxed on frame." : "No localized damage on this frame."));
+    }
+    card.append(meta);
+    grid.append(card);
+  });
+
+  section.append(grid);
+  return section;
+}
+
+function formatMoney(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const amount = Number(value);
+  return Number.isFinite(amount) ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(amount) : null;
+}
+
+const IMPROVE_ESTIMATE_THRESHOLD = 0.8; // below this, the results screen offers a focused tire recapture
+
+function confidenceBand(confidence) {
+  if (confidence >= IMPROVE_ESTIMATE_THRESHOLD) return { label: "High confidence", tone: "success" };
+  if (confidence >= 0.6) return { label: "Moderate confidence", tone: "warning" };
+  return { label: "Limited confidence", tone: "danger" };
+}
+
+function titleCase(value) {
+  return String(value).replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function needsInfoCopy(response) {
+  const reason = String(response.reason || "").toLowerCase();
+  const message = String(response.message || "").toLowerCase();
+  const haystack = `${reason} ${message}`;
+  if (haystack.includes("tire")) {
+    return {
+      headline: "We need one more view",
+      lead: "We captured enough to begin the appraisal, but we need a clearer view before we can give you a reliable value range.",
+      missing: "A clear view of the tires",
+      why: "Tire wear can affect the truck’s condition and estimated value.",
+      cta: "Capture tire close-up",
+      guide: { title: "Get a closer view of the tires.", instruction: "Move in until tread, sidewall, and wheel condition are visible." },
+    };
+  }
+  if (haystack.includes("blur") || haystack.includes("no usable") || haystack.includes("clear enough")) {
+    return {
+      headline: "We need clearer exterior views",
+      lead: "We captured enough to begin the appraisal, but we need a clearer view before we can give you a reliable value range.",
+      missing: "Clearer exterior photos",
+      why: "Hold steady and keep more of the truck in frame.",
+      cta: "Capture another exterior view",
+      guide: { title: "Hold steady for a clearer view.", instruction: "Pause, then capture a wider exterior shot with the truck fully in frame." },
+    };
+  }
+  if (haystack.includes("low confidence") || haystack.includes("identify")) {
+    return {
+      headline: "We need another truck angle",
+      lead: "We captured enough to begin the appraisal, but we need a clearer view before we can give you a reliable value range.",
+      missing: "A wider exterior view",
+      why: "Capture a wider exterior view with the body, grille, or badges visible.",
+      cta: "Capture another exterior view",
+      guide: { title: "Start with a wider view of the truck.", instruction: "Show the body, grille, or badges so the truck is easier to identify." },
+    };
+  }
+  if (haystack.includes("usable photo") || haystack.includes("only")) {
+    return {
+      headline: "We need more exterior coverage",
+      lead: "We captured enough to begin the appraisal, but we need a clearer view before we can give you a reliable value range.",
+      missing: "Broader exterior coverage",
+      why: "Walk around the truck and capture another broad view.",
+      cta: "Continue walkaround",
+      guide: { title: "Walk around the truck at a steady pace.", instruction: "Capture another broad exterior view as you move." },
+    };
+  }
+  return {
+    headline: "We need one more view",
+    lead: "We captured enough to begin the appraisal, but we need a clearer view before we can give you a reliable value range.",
+    missing: response.reason || "Another useful exterior view",
+    why: response.message || "Capture the missing view, then estimate again.",
+    cta: "Capture another exterior view",
+    guide: { title: "Capture another useful exterior view.", instruction: response.message || "Keep the truck in frame and hold steady." },
+  };
+}
+
+function appendDemoPreviewBar(container) {
+  if (!DEMO_MODE) return;
+  const bar = createElement("div", "demo-preview-bar");
+  bar.append(createElement("span", "", "Designer preview — jump between result screens"));
+  [
+    ["Priced result", () => renderBackendResponse(DEMO_PRICED)],
+    ["Needs more info", () => renderBackendResponse(DEMO_NEEDS_INFO)],
+    ["Unable to assess", () => renderBackendResponse(DEMO_NOT_A_TRUCK)],
+    ["Technical error", () => renderErrorResult("Your images were captured, but the appraisal request did not complete.")],
+  ].forEach(([label, handler]) => {
+    const button = createElement("button", "button", label);
+    button.type = "button";
+    button.addEventListener("click", handler);
+    bar.append(button);
+  });
+  container.append(bar);
+}
+
+function appendResultActions(container, buttons) {
+  const actions = createElement("div", "result-actions");
+  buttons.forEach(([label, className, handler]) => {
+    const button = createElement("button", className, label);
+    button.type = "button";
+    button.addEventListener("click", handler);
+    actions.append(button);
+  });
+  container.append(actions);
+  appendDemoPreviewBar(container);
+}
+
+function beginFocusedRecapture(guide) {
+  resetSession({ confirmUser: false, followupMessage: "" });
+  forcedGuide = guide;
+  startWalkaround();
 }
 
 function renderPricedResult(response) {
-  const [low, high] = Array.isArray(response.price_range) ? response.price_range : [];
-  const confidence = Math.max(0, Math.min(1, Number(response.confidence) || 0));
-  const breakdown = response.breakdown || {};
-  const content = createElement("div", "priced-content");
-  content.append(createElement("div", "price-range", `${formatMoney(low)} – ${formatMoney(high)}`));
-
-  const confidenceRow = createElement("div", "confidence-row");
-  confidenceRow.append(createElement("span", "", `${Math.round(confidence * 100)}% confidence`));
-  const meter = createElement("span", "confidence-meter");
-  const meterFill = createElement("span");
-  meterFill.style.width = `${Math.round(confidence * 100)}%`;
-  meter.append(meterFill);
-  confidenceRow.append(meter);
-  content.append(confidenceRow);
-
-  const notes = Array.isArray(response.notes) ? response.notes.filter((note) => typeof note === "string" && note.trim()) : [];
-  if (notes.length) {
-    const noteList = createElement("div", "result-notes");
-    notes.forEach((note) => noteList.append(createElement("p", "result-note", note)));
-    content.append(noteList);
+  const range = Array.isArray(response.price_range) ? response.price_range : [];
+  const low = formatMoney(range[0]);
+  const high = formatMoney(range[1]);
+  if (!low || !high) {
+    renderErrorResult("The appraisal response was missing a usable value range.");
+    return;
   }
+  const confidence = Math.max(0, Math.min(1, Number(response.confidence) || 0));
+  const band = confidenceBand(confidence);
+  const breakdown = response.breakdown || {};
+  const visual = breakdown.visual_comps || {};
+  const views = breakdown.views_used ?? captures.length;
+  setScreen("result");
+  resultPanel.className = "light-screen result-screen is-priced";
+  resultPanel.replaceChildren();
 
-  const flow = createElement("div", "valuation-flow");
-  appendValuationStep(flow, "Comparable baseline", formatMoney(breakdown.base_price));
-  flow.append(createElement("span", "flow-arrow", "→"));
-  appendValuationStep(flow, "Visual adjustments", `${breakdown.condition || "Unknown"} condition · ${breakdown.tire_condition || "Unknown"} tires`);
-  flow.append(createElement("span", "flow-arrow", "→"));
-  appendValuationStep(flow, "Supported range", `${formatMoney(low)} – ${formatMoney(high)}`, true);
-  content.append(flow, createElement("h3", "breakdown-title", "What the photos showed"));
+  const hero = createElement("section", "price-hero");
+  hero.append(
+    createElement("h2", "", "Estimated market value"),
+    createElement("p", "price-range", `${low}–${high}`),
+  );
+  hero.append(renderConfidenceMeter(confidence, band));
+  hero.append(createElement("p", "result-copy", `Based on ${views} usable exterior view${views === 1 ? "" : "s"}.`));
+  if (confidence < IMPROVE_ESTIMATE_THRESHOLD) {
+    hero.append(renderImproveEstimateAction());
+  }
+  resultPanel.append(hero);
 
-  const details = [
-    ["Vehicle", [breakdown.year_estimate, breakdown.make, breakdown.model, breakdown.trim].filter(Boolean).join(" ") || "Not reported"],
-    ["Condition", breakdown.condition || "Not reported"],
-    ["Tires", breakdown.tire_condition || "Not reported"],
-    ["Views analyzed", breakdown.views_used ?? "Not reported"],
-  ];
-  const detailList = createElement("dl", "breakdown-grid");
-  details.forEach(([label, value]) => {
-    const item = createElement("div", "breakdown-item");
-    item.append(createElement("dt", "", label), createElement("dd", "", String(value)));
-    detailList.append(item);
-  });
-  content.append(detailList);
+  const identity = createElement("section", "evidence-card");
+  identity.append(createElement("h2", "", "Vehicle identified"));
+  const unknownIdentity = !breakdown.make || String(breakdown.make).toLowerCase() === "unknown";
+  if (unknownIdentity && (!breakdown.model || String(breakdown.model).toLowerCase() === "unknown")) {
+    identity.append(createElement("p", "result-copy", "Vehicle details could not be confidently identified."));
+  } else {
+    identity.append(createElement("p", "identity-name", [breakdown.make, breakdown.model].filter(Boolean).join(" ")));
+    identity.append(createElement("p", "result-copy", breakdown.year_estimate ? `Estimated year: ${breakdown.year_estimate}` : "Year could not be confidently identified."));
+  }
+  resultPanel.append(identity);
 
+  const condition = createElement("section", "evidence-card");
+  condition.append(createElement("h2", "", "Visible condition"));
+  condition.append(createElement("p", "identity-name", breakdown.condition ? `${titleCase(breakdown.condition)} exterior condition` : "Exterior condition could not be confidently assessed."));
+  const tire = createElement("p", "result-copy", breakdown.tire_condition ? `Tires · ${titleCase(breakdown.tire_condition)}` : "Tire condition could not be confidently assessed.");
+  condition.append(tire);
   const damage = Array.isArray(breakdown.damage)
     ? breakdown.damage.map((item) => typeof item === "string" ? item : item?.description).filter(Boolean)
     : [];
-  content.append(createElement("p", "damage-summary", damage.length ? `Visible damage considered: ${damage.join("; ")}.` : "No visible damage was reported in the analyzed views."));
-
-  const annotatedPhotos = Array.isArray(breakdown.annotated_damage_photos) ? breakdown.annotated_damage_photos.filter(Boolean) : [];
-  if (annotatedPhotos.length) {
-    const origin = apiOrigin();
-    content.append(createElement("h3", "breakdown-title", "Flagged damage"));
-    const gallery = createElement("div", "damage-photo-gallery");
-    annotatedPhotos.forEach((path) => {
-      const img = document.createElement("img");
-      img.className = "damage-photo";
-      img.src = origin ? `${origin}${path}` : path;
-      img.alt = "Photo with detected damage highlighted";
-      gallery.append(img);
-    });
-    content.append(gallery);
+  condition.append(createElement("p", "", "Damage observed"));
+  if (damage.length) {
+    const list = createElement("ul", "damage-list");
+    damage.forEach((item) => list.append(createElement("li", "", item)));
+    condition.append(list);
+  } else {
+    condition.append(createElement("p", "result-copy", "No visible exterior damage identified in the captured views."));
   }
+  resultPanel.append(condition);
 
-  showResult("priced", "Estimated truck value", "A comps-backed range adjusted using facts extracted from the submitted photos.", content);
+  const evidenceSection = renderEvidenceGallery(response);
+  if (evidenceSection) resultPanel.append(evidenceSection);
+
+  const comps = createElement("section", "comp-card");
+  comps.append(createElement("h2", "", "Comparable market value"));
+  const visualBase = formatMoney(visual.visual_base_price) || formatMoney(breakdown.base_price);
+  const neighborCount = Number(visual.neighbors_used) || 0;
+  comps.append(createElement("p", "result-copy", visualBase
+    ? (neighborCount
+      ? `${neighborCount} visually similar real listing${neighborCount === 1 ? "" : "s"} averaged ${visualBase} before condition adjustments.`
+      : `Comparable listings averaged ${visualBase} before condition adjustments.`)
+    : "No comparable listings could be matched with enough confidence to report a starting value."));
+  resultPanel.append(comps);
+
+  const actions = [
+    ["Start another appraisal", "button button-primary", () => resetSession({ confirmUser: false, followupMessage: "" })],
+    ["Review captured views", "button button-secondary", () => setScreen("review")],
+  ];
+  appendResultActions(resultPanel, actions);
+  resultPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderConfidenceMeter(confidence, band) {
+  const wrap = createElement("div", "confidence-meter");
+  const row = createElement("div", "confidence-row");
+  row.append(
+    createElement("span", "confidence-label", band.label),
+    createElement("span", "confidence-value", `${Math.round(confidence * 100)}%`),
+  );
+  wrap.append(row);
+  const track = createElement("div", "confidence-track");
+  const fill = createElement("div", `confidence-fill confidence-fill--${band.tone}`);
+  fill.style.width = `${Math.round(confidence * 100)}%`;
+  track.append(fill);
+  wrap.append(track);
+  return wrap;
+}
+
+function renderImproveEstimateAction() {
+  const wrap = createElement("div", "improve-estimate");
+  const button = createElement("button", "button button-quiet", "Improve this estimate");
+  button.type = "button";
+  button.addEventListener("click", () => beginFocusedRecapture(GUIDE_STEPS[3]));
+  wrap.append(button);
+  const info = createElement("span", "info-icon");
+  info.setAttribute("tabindex", "0");
+  info.setAttribute("role", "button");
+  info.setAttribute("aria-label", "Why am I seeing this?");
+  info.append(
+    createElement("span", "info-icon-glyph", "i"),
+    createElement("span", "info-tooltip", `This appears because confidence is below ${Math.round(IMPROVE_ESTIMATE_THRESHOLD * 100)}%. A clear close-up of the tires is the single view most likely to sharpen the estimate.`),
+  );
+  wrap.append(info);
+  return wrap;
 }
 
 function renderNeedsMoreInfo(response) {
-  const content = createElement("div");
-  if (response.reason) content.append(createElement("p", "result-reason", `Gap identified: ${response.reason}`));
-  const actions = createElement("div", "result-actions");
-  const retryButton = createElement("button", "button button-primary", "Start a focused recapture");
-  retryButton.type = "button";
-  retryButton.addEventListener("click", () => {
-    const guidance = response.message || response.reason || "Capture the requested missing view.";
-    resetSession({ confirmUser: false, followupMessage: `${guidance} Start a new live session when ready.` });
-    document.querySelector(".capture-panel").scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-  actions.append(retryButton);
-  content.append(actions);
-  showResult("needs-info", "We need one more useful view", response.message || "The current evidence cannot support a confident estimate.", content);
+  const copy = needsInfoCopy(response);
+  setScreen("result");
+  resultPanel.className = "light-screen result-screen is-needs-info";
+  resultPanel.replaceChildren(
+    createElement("p", "result-kicker", "More information needed"),
+    createElement("h1", "", copy.headline),
+    createElement("p", "light-lead", copy.lead),
+  );
+  const card = createElement("section", "reason-card");
+  card.append(createElement("h2", "", "What’s missing"), createElement("p", "identity-name", copy.missing));
+  card.append(createElement("h2", "", "Why it matters"), createElement("p", "result-copy", copy.why));
+  resultPanel.append(card);
+  appendResultActions(resultPanel, [
+    [copy.cta, "button button-amber button-xl", () => beginFocusedRecapture(copy.guide)],
+    ["Continue walkaround", "button button-secondary", () => beginFocusedRecapture(copy.guide)],
+    ["Start over", "button button-quiet", () => resetSession({ confirmUser: false, followupMessage: "" })],
+  ]);
+  resultPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderNotATruck(response) {
+  setScreen("result");
+  resultPanel.className = "light-screen result-screen is-needs-info";
+  resultPanel.replaceChildren(
+    createElement("p", "result-kicker", "Unable to assess"),
+    createElement("h1", "", "We couldn’t identify a truck"),
+    createElement("p", "light-lead", "Make sure the truck is clearly in frame, then try again."),
+  );
+  const card = createElement("section", "reason-card");
+  card.append(createElement("h2", "", "What’s missing"), createElement("p", "identity-name", "A recognizable truck in the captured views"));
+  card.append(createElement("p", "result-copy", response.message || "Fleetworth will not return a value unless a truck is clearly visible."));
+  resultPanel.append(card);
+  appendResultActions(resultPanel, [
+    ["Start new capture", "button button-amber button-xl", () => beginFocusedRecapture(GUIDE_STEPS[0])],
+    ["Start over", "button button-quiet", () => resetSession({ confirmUser: false, followupMessage: "" })],
+  ]);
 }
 
 function renderErrorResult(message) {
-  const actions = createElement("div", "result-actions");
-  const retryButton = createElement("button", "button button-secondary", "Try submitting again");
-  retryButton.type = "button";
-  retryButton.addEventListener("click", submitSession);
-  actions.append(retryButton);
-  showResult("error", "We could not complete the estimate", message || "Please try again.", actions);
+  setScreen("result");
+  resultPanel.className = "light-screen result-screen is-error";
+  resultPanel.replaceChildren(
+    createElement("p", "result-kicker", "Submission error"),
+    createElement("h1", "", "We couldn’t submit this walkaround"),
+    createElement("p", "light-lead", "Your images were captured, but the appraisal request did not complete."),
+  );
+  const card = createElement("section", "reason-card");
+  card.append(createElement("p", "result-copy", message || "Check the connection and try again."));
+  resultPanel.append(card);
+  appendResultActions(resultPanel, [
+    ["Try again", "button button-primary", submitSession],
+    ["Return to review", "button button-secondary", () => setScreen("review")],
+  ]);
+}
+
+function renderAnalysisState() {
+  setScreen("result");
+  resultPanel.className = "light-screen result-screen is-loading";
+  resultPanel.setAttribute("aria-busy", "true");
+  resultPanel.replaceChildren(
+    createElement("p", "result-kicker", "Appraisal in progress"),
+    createElement("h1", "", "Building your appraisal"),
+    createElement("p", "light-lead", "Comparing this truck with similar market listings — this usually takes a few seconds."),
+    createElement("div", "spinner"),
+    createElement("p", "result-copy analysis-wait", ""),
+  );
+  const startedAt = Date.now();
+  window.clearInterval(analysisStageTimer);
+  analysisStageTimer = window.setInterval(() => {
+    if (Date.now() - startedAt > 12000) {
+      const wait = resultPanel.querySelector(".analysis-wait");
+      if (wait) wait.textContent = "This is taking a little longer than usual. Your walkaround is still being analyzed.";
+    }
+  }, 1100);
 }
 
 function renderBackendResponse(response = {}) {
+  window.clearInterval(analysisStageTimer);
+  resultPanel.removeAttribute("aria-busy");
   if (response.status === "priced") renderPricedResult(response);
   else if (response.status === "needs_more_info") renderNeedsMoreInfo(response);
-  else renderErrorResult(response.message);
+  else if (response.status === "not_a_truck") renderNotATruck(response);
+  else renderErrorResult(response.message || response.detail || "The appraisal could not be completed.");
+}
+
+async function postPredict(formData) {
+  const endpoint = document.body.dataset.predictEndpoint;
+  if (DEMO_MODE || !endpoint) {
+    renderAnalysisState();
+    await new Promise((resolve) => window.setTimeout(resolve, 3500));
+    renderBackendResponse(DEMO_PRICED);
+    return;
+  }
+  renderAnalysisState();
+  const response = await fetch(endpoint, { method: "POST", body: formData });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = data.detail;
+    const detailText = typeof detail === "string"
+      ? detail
+      : Array.isArray(detail)
+        ? detail.map((item) => item.msg || JSON.stringify(item)).join(" ")
+        : "";
+    throw new Error(detailText || data.message || `The analysis service returned ${response.status}.`);
+  }
+  renderBackendResponse(data);
 }
 
 async function submitSession() {
   const payload = buildFormData();
   if (!payload) {
-    actionMessage.textContent = "Record a session and collect at least three clear photos before submitting.";
+    setScreen("review");
+    setSubmitStatus("alert", "Continue capturing until coverage is strong enough to estimate.");
     return;
   }
-  const endpoint = `${apiOrigin()}/predict`;
   window.dispatchEvent(new CustomEvent("fleetworth:capture-ready", { detail: { manifest: payload.manifest } }));
-  if (!endpoint) {
-    showResult("ready", "Evidence package ready", `${captures.length} exterior photos and the session video are ready for the FastAPI /predict endpoint.`);
-    return;
-  }
   isSubmitting = true;
   renderReview();
-  showResult("loading", "Analyzing truck evidence", "Extracting visible truck facts and comparing them with market data…");
   try {
-    const response = await fetch(endpoint, { method: "POST", body: payload.formData });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.message || `The analysis service returned ${response.status}.`);
-    renderBackendResponse(data);
+    await postPredict(payload.formData);
   } catch (error) {
     renderErrorResult(error.message || "Your evidence remains in this browser. Check the backend connection and try again.");
   } finally {
@@ -792,10 +1177,12 @@ async function submitSession() {
   }
 }
 
-function resetSession({ confirmUser = true, followupMessage = "Session discarded." } = {}) {
-  if (confirmUser && !window.confirm("Discard the recorded session and all snapped photos?")) return;
+function clearCaptures() {
   captures.forEach((capture) => URL.revokeObjectURL(capture.url));
   captures.splice(0, captures.length);
+}
+
+function clearSessionVideo() {
   if (sessionVideoUrl) URL.revokeObjectURL(sessionVideoUrl);
   sessionVideo = undefined;
   sessionVideoUrl = undefined;
@@ -805,7 +1192,88 @@ function resetSession({ confirmUser = true, followupMessage = "Session discarded
   sessionPlayback.removeAttribute("src");
   sessionPlayback.load();
   sessionVideoReview.hidden = true;
+}
+
+async function handlePhotoUpload(fileList) {
+  const files = [...fileList].filter((file) => file.type.startsWith("image/") || /\.(jpe?g|png|webp)$/i.test(file.name));
+  if (!files.length) {
+    actionMessage.textContent = "Choose one or more exterior truck photos.";
+    return;
+  }
+  if (files.length > TARGET_PHOTOS) {
+    actionMessage.textContent = `Using the first ${TARGET_PHOTOS} photos for this appraisal.`;
+  }
+  clearCaptures();
+  clearSessionVideo();
+  captureSource = "photos";
+  const selected = files.slice(0, TARGET_PHOTOS);
+  for (const file of selected) {
+    const blob = file.type ? file : new Blob([await file.arrayBuffer()], { type: "image/jpeg" });
+    captures.push({
+      id: crypto.randomUUID?.() || `${Date.now()}-${captures.length}`,
+      blob,
+      url: URL.createObjectURL(blob),
+      capturedAt: new Date(file.lastModified || Date.now()).toISOString(),
+      width: 0,
+      height: 0,
+      detectorConfidence: 0,
+      blurry: false,
+      limited: false,
+      helpful: /tire/i.test(file.name),
+    });
+  }
+  clearResult();
+  setSessionState("Photos ready", "complete");
+  setScreen("review");
+  renderAll();
+  if (captures.length < MIN_PHOTOS) {
+    setSubmitStatus("alert", `Add at least ${MIN_PHOTOS} exterior photos to estimate.`);
+  }
+}
+
+async function handleVideoUpload(fileList) {
+  const file = fileList?.[0];
+  if (!file) return;
+  const looksVideo = file.type.startsWith("video/") || /\.(mp4|webm|mov)$/i.test(file.name);
+  if (!looksVideo) {
+    actionMessage.textContent = "Choose an MP4, WebM, or MOV walkaround video.";
+    return;
+  }
+  clearCaptures();
+  clearSessionVideo();
+  captureSource = "video";
+  clearResult();
+  isSubmitting = true;
+  setSessionState("Processing video", "complete");
+  setScreen("result");
+  renderAnalysisState();
+  const analysisLead = resultPanel.querySelector(".light-lead");
+  if (analysisLead) {
+    analysisLead.textContent = "We’re pulling clear key frames from your video, then comparing them with similar market listings.";
+  }
+  try {
+    const formData = new FormData();
+    formData.append("video", file, file.name || "walkaround.mp4");
+    await postPredict(formData);
+  } catch (error) {
+    renderErrorResult(error.message || "We could not process that video. Try another file or use live capture.");
+  } finally {
+    isSubmitting = false;
+  }
+}
+
+function resetSession({ confirmUser = true, followupMessage = "Session discarded." } = {}) {
+  if (confirmUser && !window.confirm("Start over and discard this walkaround?")) return;
+  clearCaptures();
+  if (isRecording) {
+    discardingSession = true;
+    stopSession();
+  }
+  clearSessionVideo();
   suggestionIndex = 0;
+  forcedGuide = null;
+  captureSource = "live";
+  continueButton.hidden = false;
   isPaused = false;
   elapsedBeforePause = 0;
   recordingStartedAt = undefined;
@@ -816,6 +1284,7 @@ function resetSession({ confirmUser = true, followupMessage = "Session discarded
   clearResult();
   setSessionState(cameraStream ? "Camera ready" : "Ready to capture", "ready");
   actionMessage.textContent = followupMessage;
+  setScreen("ready");
   renderAll();
 }
 
@@ -824,7 +1293,7 @@ async function loadDetector() {
     detectorMode = "fallback";
     autoCapture.checked = false;
     autoCapture.disabled = true;
-    setFrameStatus("warning", "Detector unavailable — manual snapping enabled");
+    setFrameStatus("warning", "Auto-snap unavailable — tap the shutter");
     return;
   }
   try {
@@ -834,15 +1303,30 @@ async function loadDetector() {
     detectorMode = "fallback";
     autoCapture.checked = false;
     autoCapture.disabled = true;
-    setFrameStatus("warning", "Detector unavailable — manual snapping enabled");
+    setFrameStatus("warning", "Auto-snap unavailable — tap the shutter");
   }
 }
 
 cameraSelect.addEventListener("change", () => { if (!isRecording && cameraSelect.value !== activeCameraId) openCamera(); });
-startButton.addEventListener("click", startSession);
+startButton.addEventListener("click", startWalkaround);
+retryCameraButton.addEventListener("click", () => { pendingStart = false; openCamera(); });
+previewResultsButton?.addEventListener("click", () => renderBackendResponse(DEMO_PRICED));
+uploadPhotosButton?.addEventListener("click", () => photoFileInput?.click());
+uploadVideoButton?.addEventListener("click", () => videoFileInput?.click());
+photoFileInput?.addEventListener("change", async () => {
+  const files = photoFileInput.files;
+  if (files?.length) await handlePhotoUpload(files);
+  photoFileInput.value = "";
+});
+videoFileInput?.addEventListener("change", async () => {
+  const files = videoFileInput.files;
+  if (files?.length) await handleVideoUpload(files);
+  videoFileInput.value = "";
+});
 pauseButton.addEventListener("click", togglePause);
 stopButton.addEventListener("click", stopSession);
 captureButton.addEventListener("click", () => captureFrame());
+continueButton.addEventListener("click", startWalkaround);
 resetButton.addEventListener("click", () => resetSession());
 submitButton.addEventListener("click", submitSession);
 autoCapture.addEventListener("change", () => { stableSince = 0; });
@@ -851,12 +1335,20 @@ window.addEventListener("beforeunload", () => {
   if (mediaRecorder?.state === "recording" || mediaRecorder?.state === "paused") mediaRecorder.stop();
   stopAnalysisLoop();
   stopClock();
+  window.clearInterval(analysisStageTimer);
   cameraStream?.getTracks().forEach((track) => track.stop());
   captures.forEach((capture) => URL.revokeObjectURL(capture.url));
   if (sessionVideoUrl) URL.revokeObjectURL(sessionVideoUrl);
 });
 
 window.FleetworthCapture = { buildFormData, getManifest: () => buildFormData()?.manifest || null, showResponse: renderBackendResponse };
+
+if (DEMO_MODE) {
+  if (demoBadge) demoBadge.hidden = false;
+  if (demoHelper) demoHelper.hidden = false;
+  if (demoPreviewSlot) demoPreviewSlot.hidden = false;
+  if (previewResultsButton) previewResultsButton.hidden = false;
+}
 
 renderAll();
 loadDetector();
