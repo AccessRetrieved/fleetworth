@@ -22,5 +22,41 @@
   "Spreader Truck": {
     "pages_done": 3,
     "done": true
+  },
+  "Peterbilt": {
+    "pages_done": 19,
+    "done": true
+  },
+  "579": {
+    "pages_done": 4,
+    "done": true
+  },
+  "567": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Kenworth": {
+    "pages_done": 68,
+    "done": true
+  },
+  "W900": {
+    "pages_done": 4,
+    "done": true
+  },
+  "T370": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Tow": {
+    "pages_done": 9,
+    "done": true
+  },
+  "Truck": {
+    "pages_done": 7,
+    "done": true
+  },
+  "Bucket": {
+    "pages_done": 3,
+    "done": true
   }
 }
