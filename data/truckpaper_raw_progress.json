@@ -22,5 +22,21 @@
   "Spreader Truck": {
     "pages_done": 3,
     "done": true
+  },
+  "Isuzu": {
+    "pages_done": 20,
+    "done": true
+  },
+  "FTR": {
+    "pages_done": 5,
+    "done": true
+  },
+  "FVR": {
+    "pages_done": 2,
+    "done": true
+  },
+  "Sterling": {
+    "pages_done": 4,
+    "done": false
   }
 }
