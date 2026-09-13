@@ -101,12 +101,33 @@
     "pages_done": 2,
     "done": true
   },
+<<<<<<< HEAD
   "Reefer Truck": {
     "pages_done": 24,
     "done": true
   },
   "Cab Chassis Truck": {
     "pages_done": 35,
+=======
+  "Freightliner Columbia": {
+<<<<<<< HEAD
+    "pages_done": 184,
+    "done": true
+  },
+  "Freightliner Coronado": {
+    "pages_done": 3,
+    "done": true
+  },
+  "Crane Truck": {
+    "pages_done": 24,
+    "done": true
+  },
+  "Day Cab Truck": {
+    "pages_done": 5,
+    "done": true
+=======
+    "pages_done": 126,
+>>>>>>> eb10c57655ccdbe84781907ae37144a470e4d422
     "done": false
 <<<<<<< HEAD
   },
