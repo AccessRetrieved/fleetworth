@@ -97,13 +97,15 @@ Goal: build a dataset of `{image_url(s), make, model, year, trim, price, mileage
 - [ ] This gives every comp both a real sale price AND an extracted condition JSON — needed for Option B (learned regression) pricing
 
 ### 1e. DINOv2 comp-image embedding index
-- [ ] Load a pretrained DINOv2 encoder (start with `dinov2_vitb14`; no fine-tuning)
-- [ ] For each retained TruckPaper comp image, preprocess it with the model's standard transform and compute one normalized embedding vector
-- [ ] Store `{listing_id, image_id, embedding, price, make, model, year, detail_url}`; keep the embedding array separate from the raw JSONL if convenient
-- [ ] Build a local FAISS cosine-similarity index (`IndexFlatIP` over L2-normalized vectors is sufficient for hackathon scale)
-- [ ] Save the index plus a metadata mapping so a nearest-neighbor result can be turned back into the source listing and real price
-- [ ] Sanity-check retrieval manually: query 10 comp images and verify that nearest neighbors are at least visually/semantically plausible trucks
-- [ ] Do **not** train DINO on the hackathon dataset; its job is only `image → embedding → nearest real comps`
+- [x] Load a pretrained DINOv2 encoder (start with `dinov2_vitb14`; no fine-tuning)
+- [x] For each retained TruckPaper comp image, preprocess it with the model's standard transform and compute one normalized embedding vector
+- [x] Store `{listing_id, image_id, embedding, price, make, model, year, detail_url}`; keep the embedding array separate from the raw JSONL if convenient
+- [x] Build a local FAISS cosine-similarity index (`IndexFlatIP` over L2-normalized vectors is sufficient for hackathon scale)
+- [x] Save the index plus a metadata mapping so a nearest-neighbor result can be turned back into the source listing and real price
+- [x] Sanity-check retrieval manually: query 10 comp images and verify that nearest neighbors are at least visually/semantically plausible trucks (leave-one-out eval in `build_dino_index.py --sanity-only`)
+- [x] Do **not** train DINO on the hackathon dataset; its job is only `image → embedding → nearest real comps`
+
+Implemented in `backend/dino_retrieval.py` / `backend/build_dino_index.py` on the `dino` / `dino-formula-combined` branches, including multi-machine index sharding (`--shard`/`--merge`). Not yet merged to `main`.
 
 ---
 
@@ -140,12 +142,14 @@ There is no image-vs-video choice for the user — capture is always one continu
 - [x] Run one extraction call per auto-snapped photo only (~3-7 calls per truck) — the stored video is never sampled into frames or fed into extraction
 
 ### 2b-DINO. Query image → embedding → visual comps
-- [ ] Run each usable auto-snapped query photo through the same pretrained DINOv2 encoder used in Phase 1e
-- [ ] L2-normalize the resulting embedding and query the FAISS index with cosine similarity
-- [ ] Retrieve Top-K neighbors per photo (start with `K=20`); return listing ID, similarity score, real listed price, and metadata for each neighbor
-- [ ] Do not copy the single nearest truck's price. Keep the neighborhood distribution so one weird match cannot dominate the estimate
-- [ ] For each query view, record retrieval diagnostics such as `top1_similarity`, `topK_mean_similarity`, and price spread; low similarity or extremely wide neighbor prices should lower confidence
-- [ ] Keep this path independent from VLM make/model extraction — a visually useful neighbor remains useful even when the VLM cannot confidently name the truck
+- [x] Run each usable auto-snapped query photo through the same pretrained DINOv2 encoder used in Phase 1e
+- [x] L2-normalize the resulting embedding and query the FAISS index with cosine similarity
+- [x] Retrieve Top-K neighbors per photo (start with `K=20`); return listing ID, similarity score, real listed price, and metadata for each neighbor
+- [x] Do not copy the single nearest truck's price. Keep the neighborhood distribution so one weird match cannot dominate the estimate
+- [x] For each query view, record retrieval diagnostics such as `top1_similarity`, `topK_mean_similarity`, and price spread; low similarity or extremely wide neighbor prices should lower confidence
+- [x] Keep this path independent from VLM make/model extraction — a visually useful neighbor remains useful even when the VLM cannot confidently name the truck
+
+Implemented in `backend/dino_retrieval.py` on `dino` / `dino-formula-combined`. Not yet merged to `main`.
 
 ### 2c. Damage visualization (bounding boxes)
 - [x] For each photo with at least one localized damage entry (has a non-null `box`), draw a rectangle on a copy of that photo at the box coordinates (OpenCV `cv2.rectangle`, or any equivalent — implementation is flexible) and label it with the damage description
@@ -164,10 +168,12 @@ Works across any number of usable views (3-7 typical) — not tied to a fixed co
 - [x] Damage list: union of all damage entries seen across views, deduped by description text (case-insensitive) — exterior damage only, per the interior-out-of-scope decision above. Each entry keeps its own `box` (or `null`) from whichever view reported it; boxes are only used for Phase 2c visualization on their source photo, never merged/reprojected across views
 - [x] Tire condition: worst score seen across whichever views show the tires
 - [x] Output one fused JSON per upload, same schema as single-view extraction
-- [ ] **DINO retrieval fusion:** merge the Top-K neighbor lists from all usable query photos. Reward a comp when the same `listing_id` appears near the top for multiple different views instead of treating every image match independently
-- [ ] Compute a fused retrieval score, e.g. `sum(view_similarity^alpha)` with a recurrence bonus for appearing in 2+ views; keep the exact formula simple and inspectable
-- [ ] Keep the best ~20-50 fused comps as the visual neighborhood for pricing, together with their real prices and similarity scores
-- [ ] Record retrieval consistency: if front/side/rear views all point toward the same family of comps, confidence rises; if views retrieve unrelated truck types, confidence falls
+- [x] **DINO retrieval fusion:** merge the Top-K neighbor lists from all usable query photos. Reward a comp when the same `listing_id` appears near the top for multiple different views instead of treating every image match independently
+- [x] Compute a fused retrieval score, e.g. `sum(view_similarity^alpha)` with a recurrence bonus for appearing in 2+ views; keep the exact formula simple and inspectable
+- [x] Keep the best ~20-50 fused comps as the visual neighborhood for pricing, together with their real prices and similarity scores
+- [x] Record retrieval consistency: if front/side/rear views all point toward the same family of comps, confidence rises; if views retrieve unrelated truck types, confidence falls
+
+Implemented in `backend/fusion.py` (`fuse_retrieval`) on `dino` / `dino-formula-combined`, including a model-family recurrence bonus added by the formula-tuning pass. Not yet merged to `main`.
 
 ---
 
@@ -185,22 +191,25 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 ```
 
 ### 4b. Option A — DINO visual-neighborhood price baseline (BUILD THIS FIRST)
-- [ ] Take the fused DINO Top-K comparable listings from Phase 3
-- [ ] Compute a robust visual-neighborhood base price, preferably a **similarity-weighted median** (weighted mean is acceptable as a first implementation):
+- [x] Take the fused DINO Top-K comparable listings from Phase 3
+- [x] Compute a robust visual-neighborhood base price, preferably a **similarity-weighted median** (weighted mean is acceptable as a first implementation):
   ```
   weight_i = max(similarity_i, 0) ** alpha
   p_visual = weighted_median(comp_price_i, weight_i)
   ```
-- [ ] Reject/downweight very weak visual matches below a chosen cosine-similarity threshold rather than forcing every query to use bad neighbors
-- [ ] Use the spread of retrieved comp prices (weighted IQR / MAD / standard deviation) as a direct uncertainty signal
-- [ ] Apply the existing visible-condition adjustment on top of `p_visual`:
+  (implemented as an interpolated weighted median, tuned during the formula-improvement pass)
+- [x] Reject/downweight very weak visual matches below a chosen cosine-similarity threshold rather than forcing every query to use bad neighbors
+- [x] Use the spread of retrieved comp prices (weighted IQR / MAD / standard deviation) as a direct uncertainty signal
+- [x] Apply the existing visible-condition adjustment on top of `p_visual`:
   ```
   price = p_visual * condition_adjustment(condition_score, tire_score, damage_count)
   ```
   Keep the current hand-tuned `(make, model, year) → p_base` lookup as a fallback and as a cross-check, not the only base-price source
-- [ ] If DINO visual price and make/model/year bucket price agree, raise confidence; if they differ sharply, widen the range and surface the disagreement in the explanation
+- [x] If DINO visual price and make/model/year bucket price agree, raise confidence; if they differ sharply, widen the range and surface the disagreement in the explanation
 - [x] Sanity-check output against known real listings
 - [x] **Output a price range plus a confidence score — this is the headline result, not a single point price.** Range width should respond to both VLM extraction confidence and DINO-neighborhood price spread
+
+Implemented in `backend/pricing.py` / `backend/pricing_formula.py` on `dino` / `dino-formula-combined`. Verified via leave-one-out evaluation: image-only DINO error improved 27.9% → 27.3%, and to ~21.6% when combined with a realistic year estimate. Not yet merged to `main`.
 
 ### 4c. Option B — Learned regression over VLM + DINO features (STRETCH)
 - [ ] Fit a small XGBoost/LightGBM model on scraped comps; no vision model training
@@ -219,10 +228,12 @@ tire_map = {"new": 1.0, "worn": 0.6, "bald": 0.2}
 - [ ] Only swap it in if held-out error improves; otherwise keep the simpler DINO baseline
 
 ### 4d. Fallback handling
-- [ ] Unknown/unrecognized make-model-year combo but strong DINO neighbors exist → price primarily from the DINO visual neighborhood instead of immediately falling back to a generic truck average
+- [x] Unknown/unrecognized make-model-year combo but strong DINO neighbors exist → price primarily from the DINO visual neighborhood instead of immediately falling back to a generic truck average
 - [x] Unknown make/model/year **and** weak DINO neighbors → fall back to a generic "truck" average price, flag very low confidence
 - [x] Very low extraction confidence → widen the price range, surface a warning in the UI
-- [ ] Strong disagreement between VLM identity and DINO neighborhood → keep the estimate conservative, lower confidence, and show both signals in the breakdown
+- [x] Strong disagreement between VLM identity and DINO neighborhood → keep the estimate conservative, lower confidence, and show both signals in the breakdown
+
+Implemented in `backend/pricing_formula.py` (`compute_price`, `signal_agreement`) on `dino` / `dino-formula-combined`. Not yet merged to `main`.
 
 ### 4e. Knowing its limits (required per challenge brief, not just error handling)
 - [x] **Not-a-truck detection**: if the VLM extraction indicates the subject isn't a truck (or confidence is near-zero on make/model), refuse to output a price — return a clear "this doesn't look like a truck" response instead of a number
