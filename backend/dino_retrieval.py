@@ -277,6 +277,33 @@ def search(query_embeddings: np.ndarray, k: int = TOP_K, index_dir: Path = INDEX
     return results
 
 
+def search_near_exact(query_embeddings: np.ndarray, threshold: float, k: int = TOP_K, max_k: int = 500,
+                      index_dir: Path = INDEX_DIR) -> list[list[dict]]:
+    """For each query row, every indexed comp at cosine >= threshold, however
+    many listings share that photo (up to max_k). Starts at depth k and only
+    searches deeper while the deepest result is still above threshold."""
+    index, _ = load_index(index_dir)
+    results = []
+    for query in np.atleast_2d(query_embeddings):
+        depth = k
+        while True:
+            neighbors = search(query[None], k=depth, index_dir=index_dir)[0]
+            if not neighbors or neighbors[-1]["similarity"] < threshold or depth >= min(max_k, index.ntotal):
+                break
+            depth = min(depth * 4, max_k)
+        results.append([n for n in neighbors if n["similarity"] >= threshold])
+    return results
+
+
+def retrieve_near_exact(photos: list, threshold: float, k: int = TOP_K, index_dir: Path = INDEX_DIR,
+                        model=None) -> list[list[dict]]:
+    """search_near_exact for query photos (see exact_match.py)."""
+    load_index(index_dir)
+    if not photos:
+        return []
+    return search_near_exact(embed_images(photos, model=model), threshold, k=k, index_dir=index_dir)
+
+
 def retrieve_per_view(photos: list, k: int = TOP_K, index_dir: Path = INDEX_DIR, model=None) -> list[list[dict]]:
     """Top-K comp neighbors for each query photo, in photo order. Kept
     independent of VLM make/model extraction (PLAN.md 2b-DINO)."""

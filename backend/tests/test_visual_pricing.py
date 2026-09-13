@@ -168,6 +168,118 @@ def test_uncertain_identity_falls_back_to_visual_base_price(monkeypatch, match_l
     assert result["confidence"] <= VISUAL_ONLY_CONFIDENCE_CAP
 
 
+def test_visual_price_reports_weighted_quantiles_and_effective_comps():
+    view = [neighbor(f"n{i}", 0.90 - 0.002 * i, price=40_000.0 + 2_000 * i) for i in range(10)]
+    visual = visual_base_price(fuse_retrieval([view]))
+
+    q = visual["price_quantiles"]
+    assert list(q) == ["q05", "q10", "q15", "q20", "q80", "q85", "q90", "q95"]
+    assert list(q.values()) == sorted(q.values())
+    assert q["q05"] <= visual["visual_base_price"] <= q["q95"]
+    assert 1 < visual["effective_comps"] <= 10
+
+
+def test_one_dominant_comp_has_few_effective_comps():
+    view = [neighbor("close", 0.99)] + [neighbor(f"n{i}", 0.85) for i in range(6)]
+    assert visual_base_price(fuse_retrieval([view]))["effective_comps"] < 1.1
+
+
+def comparable_visual(median, q05, q95, effective_comps=10.0, confidence=0.85):
+    return {
+        **strong_visual(median, confidence),
+        "price_quantiles": {"q05": q05, "q95": q95},
+        "effective_comps": effective_comps,
+    }
+
+
+def test_range_spans_the_comparable_price_distribution(monkeypatch):
+    monkeypatch.setattr(pricing_formula, "base_price_lookup", fake_lookup(confidence="medium"))
+    result = compute_price(EXTRACTION, visual=comparable_visual(50_000.0, q05=30_000.0, q95=90_000.0))
+
+    assert result["breakdown"]["range_method"] == "comparable_distribution"
+    assert result["breakdown"]["internal_point_estimate"] == 50_000.0
+    assert result["price_range"] == pytest.approx([30_000.0, 90_000.0])
+
+
+@pytest.mark.parametrize("visual", [None, comparable_visual(50_000.0, q05=30_000.0, q95=90_000.0)])
+def test_condition_tires_and_damage_are_reported_but_do_not_move_the_price(monkeypatch, visual):
+    monkeypatch.setattr(pricing_formula, "base_price_lookup", fake_lookup(confidence="medium"))
+    clean = compute_price({**EXTRACTION, "condition": "excellent", "tire_condition": "new"}, visual=visual)
+    rough = compute_price({
+        **EXTRACTION,
+        "condition": "poor",
+        "tire_condition": "bald",
+        "visible_damage": [{"description": "dent on door", "box": None}, "cracked mirror"],
+    }, visual=visual)
+
+    assert rough["breakdown"]["internal_point_estimate"] == clean["breakdown"]["internal_point_estimate"] == 50_000.0
+    assert (rough["price_range"], rough["confidence"]) == (clean["price_range"], clean["confidence"])
+    breakdown = rough["breakdown"]
+    assert (breakdown["condition"], breakdown["tire_condition"]) == ("poor", "bald")
+    assert breakdown["damage"] == ["dent on door", "cracked mirror"]
+    assert breakdown["condition_affects_price"] is False
+    assert "multiplier_applied" not in breakdown
+
+
+def test_tight_comparables_give_the_minimum_width(monkeypatch):
+    monkeypatch.setattr(pricing_formula, "base_price_lookup", fake_lookup(confidence="medium"))
+    result = compute_price(EXTRACTION, visual=comparable_visual(50_000.0, q05=49_000.0, q95=51_000.0))
+
+    point = result["breakdown"]["internal_point_estimate"]
+    floor = pricing_formula.RANGE_MIN_HALF_WIDTH
+    assert result["price_range"] == pytest.approx([point * (1 - floor), point * (1 + floor)])
+
+
+def test_range_width_is_independent_of_confidence(monkeypatch):
+    visual = comparable_visual(50_000.0, q05=30_000.0, q95=90_000.0)
+    monkeypatch.setattr(pricing_formula, "base_price_lookup", fake_lookup(confidence="high"))
+    sure = compute_price(EXTRACTION, visual=visual)
+    monkeypatch.setattr(pricing_formula, "base_price_lookup", fake_lookup(confidence="low"))
+    unsure = compute_price(EXTRACTION, visual=visual)
+
+    assert sure["confidence"] > unsure["confidence"]
+    assert sure["price_range"] == unsure["price_range"]
+
+
+def test_range_always_contains_a_lookup_point_outside_the_comps(monkeypatch):
+    monkeypatch.setattr(pricing_formula, "base_price_lookup", fake_lookup(confidence="high", price=50_000.0))
+    result = compute_price(EXTRACTION, visual=comparable_visual(110_000.0, q05=100_000.0, q95=120_000.0))
+
+    low, high = result["price_range"]
+    point = result["breakdown"]["internal_point_estimate"]
+    assert low <= point * (1 - pricing_formula.RANGE_MIN_HALF_WIDTH)
+    assert high == pytest.approx(120_000.0)
+
+
+def test_one_dominant_near_match_keeps_the_confidence_range(monkeypatch):
+    monkeypatch.setattr(pricing_formula, "base_price_lookup", fake_lookup(confidence="medium"))
+    result = compute_price(EXTRACTION, visual=comparable_visual(50_000.0, 49_500.0, 50_500.0, effective_comps=1.2))
+
+    point = result["breakdown"]["internal_point_estimate"]
+    pct = pricing_formula._range_pct_for_confidence(result["confidence"])
+    assert pct > pricing_formula.RANGE_MIN_HALF_WIDTH
+    # pct is recomputed from the response's confidence, rounded to 3 decimals;
+    # the range itself uses the unrounded value, so allow that rounding.
+    assert result["price_range"] == pytest.approx([point * (1 - pct), point * (1 + pct)], rel=1e-3)
+
+
+@pytest.mark.parametrize("visual", [
+    None,
+    strong_visual(52_000.0),  # no quantiles
+    {**comparable_visual(52_000.0, 30_000.0, 90_000.0), "strength": "weak"},
+])
+def test_without_a_strong_comparable_distribution_range_comes_from_confidence(monkeypatch, visual):
+    monkeypatch.setattr(pricing_formula, "base_price_lookup", fake_lookup(confidence="medium"))
+    result = compute_price(EXTRACTION, visual=visual)
+
+    point = result["breakdown"]["internal_point_estimate"]
+    pct = pricing_formula._range_pct_for_confidence(result["confidence"])
+    assert result["breakdown"]["range_method"] == "confidence"
+    # pct is recomputed from the response's confidence, rounded to 3 decimals;
+    # the range itself uses the unrounded value, so allow that rounding.
+    assert result["price_range"] == pytest.approx([point * (1 - pct), point * (1 + pct)], rel=1e-3)
+
+
 def test_uncertain_identity_with_weak_visual_keeps_lookup(monkeypatch):
     monkeypatch.setattr(pricing_formula, "base_price_lookup", fake_lookup("global_fallback", "low", price=90_000.0))
     weak = {**strong_visual(40_000.0), "strength": "weak"}

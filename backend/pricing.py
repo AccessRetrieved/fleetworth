@@ -50,6 +50,9 @@ _MODEL_FAMILY_PATTERNS = [
 VISUAL_STRONG_TOP_SIMILARITY = 0.75  # best match clearly above a random truck pair (~0.68) = trustworthy neighborhood
 VISUAL_MIN_NEIGHBORS = 5  # fewer usable comps than this can't form a robust price distribution
 VISUAL_TOP_COMPS_SHOWN = 5  # closest comps echoed back in the breakdown for explainability
+# Weighted quantiles of the comp-price distribution, reported alongside the
+# median. pricing_formula derives the displayed price range from a pair of them.
+VISUAL_PRICE_QUANTILES = (0.05, 0.10, 0.15, 0.20, 0.80, 0.85, 0.90, 0.95)
 
 # Year-aware visual pricing. DINOv2 sees a 2008 and a 2018 truck of the same
 # body style as near-identical, but they're priced a decade apart.
@@ -240,6 +243,8 @@ def visual_base_price(fused_comps: list[dict], views_queried: int = 1, year_esti
       visual_base_price   similarity-weighted median comp price
       weighted_mean_price for comparison with the median
       price_spread        {p25, p75, relative_iqr} — weighted IQR / median, an uncertainty signal
+      price_quantiles     {q05, q10, ..., q95} — weighted comp-price quantiles (same weights as the median)
+      effective_comps     Kish effective number of comps behind those weights
       top_similarity, mean_similarity, neighbors_used
       recurrence_share    share of weight from comps retrieved by 2+ views (None for one view)
       query_year, year_adjusted, median_year_gap
@@ -258,6 +263,8 @@ def visual_base_price(fused_comps: list[dict], views_queried: int = 1, year_esti
             "visual_base_price": None,
             "weighted_mean_price": None,
             "price_spread": None,
+            "price_quantiles": None,
+            "effective_comps": 0.0,
             "top_similarity": None,
             "mean_similarity": None,
             "neighbors_used": 0,
@@ -278,6 +285,13 @@ def visual_base_price(fused_comps: list[dict], views_queried: int = 1, year_esti
     p75 = _weighted_quantile(prices, weights, 0.75)
     relative_iqr = (p75 - p25) / median
     weighted_mean = sum(p * w for p, w in zip(prices, weights)) / total_weight
+    price_quantiles = {
+        f"q{round(q * 100):02d}": round(_weighted_quantile(prices, weights, q), 2) for q in VISUAL_PRICE_QUANTILES
+    }
+    # Kish effective sample size: how many comps the weights really rest on.
+    # With the sharp RETRIEVAL_ALPHA one clearly-closer comp can carry nearly
+    # all the weight, collapsing every quantile onto its single price.
+    effective_comps = total_weight ** 2 / sum(w * w for w in weights)
 
     similarities = [float(c["best_similarity"]) for c in comps]
     top_similarity = max(similarities)
@@ -309,6 +323,8 @@ def visual_base_price(fused_comps: list[dict], views_queried: int = 1, year_esti
         "visual_base_price": round(median, 2),
         "weighted_mean_price": round(weighted_mean, 2),
         "price_spread": {"p25": round(p25, 2), "p75": round(p75, 2), "relative_iqr": round(relative_iqr, 3)},
+        "price_quantiles": price_quantiles,
+        "effective_comps": round(effective_comps, 2),
         "top_similarity": round(top_similarity, 4),
         "mean_similarity": round(mean_similarity, 4),
         "neighbors_used": len(comps),

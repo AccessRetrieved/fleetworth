@@ -15,7 +15,8 @@ pipeline; it's stored as-is by the API layer as an authenticity record.
 """
 from damage_visualization import save_annotated_photos
 from dino_retrieval import METHOD as VISUAL_METHOD
-from dino_retrieval import RetrievalUnavailable, retrieve_per_view
+from dino_retrieval import RetrievalUnavailable, retrieve_near_exact, retrieve_per_view
+from exact_match import EXACT_MATCH_SIMILARITY, cluster_is_truncated, select_visual
 from fusion import fuse_extractions, fuse_retrieval
 from limits import BLUR_VARIANCE_THRESHOLD, average_hash, blur_variance, evaluate, is_near_duplicate
 from pricing import visual_base_price
@@ -46,13 +47,32 @@ def retrieve_visual_comps(photos: list[str | bytes], year_estimate=None) -> dict
         for neighbors in per_view
     ]
     fused = fuse_retrieval(per_view)
+    normal = visual_base_price(fused, views_queried=len(per_view), year_estimate=year_estimate)
+    # A photo already in the index (or a copy) is priced from its near-exact
+    # duplicate cluster instead (exact_match.py); every other query keeps
+    # `normal` unchanged.
     return {
         "method": VISUAL_METHOD,
         "available": True,
         "views_queried": len(per_view),
         "per_view": per_view_stats,
-        **visual_base_price(fused, views_queried=len(per_view), year_estimate=year_estimate),
+        **select_visual(normal, _complete_near_exact_clusters(photos, per_view), views_queried=len(per_view)),
     }
+
+
+def _complete_near_exact_clusters(photos: list, per_view: list[list[dict]]) -> list[list[dict]]:
+    """per_view, except a view whose every Top-K neighbor is near-exact (one
+    photo shared by more listings than Top-K) is searched deeper so its whole
+    duplicate cluster is priced. Ordinary views cost nothing extra."""
+    views = []
+    for photo, neighbors in zip(photos, per_view):
+        if cluster_is_truncated(neighbors):
+            try:
+                neighbors = retrieve_near_exact([photo], EXACT_MATCH_SIMILARITY)[0]
+            except Exception:
+                pass  # price from the Top-K part of the cluster rather than fail the request
+        views.append(neighbors)
+    return views
 
 
 def run_pipeline(

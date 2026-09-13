@@ -55,6 +55,12 @@ def test_priced_response_carries_visual_comps(stub_vlm, monkeypatch):
     for key in ("top_similarity", "mean_similarity", "price_spread", "neighbors_used", "signal_agreement"):
         assert key in visual
 
+    # Condition evidence stays in the API response but doesn't move the price.
+    breakdown = result["breakdown"]
+    assert (breakdown["condition"], breakdown["tire_condition"], breakdown["damage"]) == ("good", "worn", [])
+    assert breakdown["condition_affects_price"] is False
+    assert breakdown["internal_point_estimate"] == breakdown["base_price"]
+
 
 def test_missing_index_still_prices_from_vlm_path(stub_vlm, monkeypatch):
     def not_built(photos):

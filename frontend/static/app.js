@@ -904,7 +904,7 @@ function needsInfoCopy(response) {
       headline: "We need one more view",
       lead: "We captured enough to begin the appraisal, but we need a clearer view before we can give you a reliable value range.",
       missing: "A clear view of the tires",
-      why: "Tire wear can affect the truck’s condition and estimated value.",
+      why: "Tire wear is part of the truck’s visible condition report.",
       cta: "Capture tire close-up",
       guide: { title: "Get a closer view of the tires.", instruction: "Move in until tread, sidewall, and wheel condition are visible." },
     };
@@ -1045,6 +1045,9 @@ function renderPricedResult(response) {
   } else {
     condition.append(createElement("p", "result-copy", "No visible exterior damage identified in the captured views."));
   }
+  if (breakdown.condition_affects_price === false) {
+    condition.append(createElement("p", "result-copy", "Condition, tires, and damage are shown as visible evidence; they are not yet factored into the price."));
+  }
   resultPanel.append(condition);
 
   const evidenceSection = renderEvidenceGallery(response);
@@ -1056,8 +1059,8 @@ function renderPricedResult(response) {
   const neighborCount = Number(visual.neighbors_used) || 0;
   comps.append(createElement("p", "result-copy", visualBase
     ? (neighborCount
-      ? `${neighborCount} visually similar real listing${neighborCount === 1 ? "" : "s"} averaged ${visualBase} before condition adjustments.`
-      : `Comparable listings averaged ${visualBase} before condition adjustments.`)
+      ? `${neighborCount} visually similar real listing${neighborCount === 1 ? "" : "s"} averaged ${visualBase}.`
+      : `Comparable listings averaged ${visualBase}.`)
     : "No comparable listings could be matched with enough confidence to report a starting value."));
   resultPanel.append(comps);
 

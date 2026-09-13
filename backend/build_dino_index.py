@@ -32,6 +32,7 @@ import json
 import random
 import re
 import time
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -39,6 +40,7 @@ import numpy as np
 import requests
 from PIL import Image
 
+from benchmark_leakage import honest_neighbors
 from dino_retrieval import INDEX_DIR, MODEL_NAME, TOP_K, build_index, embed_images, load_index, save_index, search
 from fusion import fuse_retrieval
 from pricing import visual_base_price
@@ -264,10 +266,29 @@ def merge_shards(total: int, allow_missing: bool = False) -> None:
     print(f"merged {total} shards -> wrote {index.ntotal} vectors (dim {index.d}) to {INDEX_DIR}")
 
 
-def sanity_check(examples: int, seed: int = 0) -> None:
+def _benchmark_neighbors(query, item: dict, ntotal: int, leaky: bool, excluded: Counter) -> list[dict]:
+    """TOP_K neighbors for one leave-one-out query. Honest by default: every
+    benchmark_leakage exclusion (same listing, same photo, near-identical copy,
+    title+price relist) is removed, searching deeper when many are. leaky keeps
+    the old self-only exclusion, to compare against earlier numbers."""
+    depth = TOP_K + 40
+    while True:
+        candidates = search(query, k=depth)[0]
+        if leaky:
+            return [n for n in candidates if n["listing_id"] != item["listing_id"]][:TOP_K]
+        kept, reasons = honest_neighbors(item, candidates, TOP_K)
+        if len(kept) >= TOP_K or depth >= ntotal:
+            excluded.update(reasons)
+            return kept
+        depth *= 4
+
+
+def sanity_check(examples: int, seed: int = 0, leaky: bool = False) -> None:
     """Leave-one-out retrieval over every comp: each comp queries the index
-    with itself excluded. Prints a few example neighborhoods plus summary
-    stats, compared against a naive dataset-median-price baseline.
+    with itself and its leakage copies (same photo, near-identical duplicates,
+    title+price relists -- see benchmark_leakage.py) excluded, or with only
+    itself excluded when leaky. Prints a few example neighborhoods plus
+    summary stats, compared against a naive dataset-median-price baseline.
 
     Reports three visual-pricing numbers:
       image only   — no year information used at all (fusion/reranking alone)
@@ -285,11 +306,9 @@ def sanity_check(examples: int, seed: int = 0) -> None:
     noise_rng = random.Random(seed)
 
     top1, visual_errors, noisy_year_errors, true_year_errors, baseline_errors, strengths = [], [], [], [], [], {}
+    excluded = Counter()
     for row, item in enumerate(items):
-        neighbors = [
-            n for n in search(vectors[row:row + 1], k=TOP_K + 1)[0]
-            if n["listing_id"] != item["listing_id"]
-        ][:TOP_K]
+        neighbors = _benchmark_neighbors(vectors[row:row + 1], item, index.ntotal, leaky, excluded)
         fused = fuse_retrieval([neighbors])
         visual = visual_base_price(fused)
         strengths[visual["strength"]] = strengths.get(visual["strength"], 0) + 1
@@ -324,7 +343,9 @@ def sanity_check(examples: int, seed: int = 0) -> None:
     visual_errors = np.array(visual_errors)
     noisy_year_errors = np.array(noisy_year_errors)
     true_year_errors = np.array(true_year_errors)
-    print("\n=== leave-one-out summary ===")
+    print("\n=== leave-one-out summary " + ("(LEAKY: only the comp itself excluded) ===" if leaky else "(honest) ==="))
+    if not leaky:
+        print(f"excluded leakage neighbors: {dict(excluded)}")
     print(f"comps: {len(items)} · top-1 similarity p10/p50/p90: {p10:.3f} / {p50:.3f} / {p90:.3f}")
     print(f"neighborhood strength: {strengths}")
     print(f"median abs % error — dataset median: {np.median(baseline_errors):.1%}")
@@ -355,13 +376,14 @@ if __name__ == "__main__":
     parser.add_argument("--shard", type=_parse_shard, metavar="I/N", help="only download+embed the I-th of N slices of the listings; saves partial results instead of building the index (see module docstring)")
     parser.add_argument("--merge", type=int, metavar="N", help="combine N previously-built shards into the final index")
     parser.add_argument("--allow-missing-shards", action="store_true", help="with --merge, proceed using whichever shards are present instead of requiring all N (e.g. a machine dropped out) -- the index is just smaller, not corrupted")
+    parser.add_argument("--leaky", action="store_true", help="with --sanity/--sanity-only, exclude only the comp itself (old behavior) instead of all duplicate/relist leakage")
     args = parser.parse_args()
 
     if args.merge is not None:
         merge_shards(args.merge, allow_missing=args.allow_missing_shards)
     elif args.sanity_only is not None:
-        sanity_check(args.sanity_only)
+        sanity_check(args.sanity_only, leaky=args.leaky)
     else:
         build(shard=args.shard)
         if args.sanity is not None:
-            sanity_check(args.sanity)
+            sanity_check(args.sanity, leaky=args.leaky)
