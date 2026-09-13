@@ -60,7 +60,11 @@
     "done": true
   },
   "International MV": {
-    "pages_done": 56,
+    "pages_done": 57,
+    "done": true
+  },
+  "Landscape Truck": {
+    "pages_done": 5,
     "done": false
   }
 }
