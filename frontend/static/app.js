@@ -814,17 +814,29 @@ function evidenceImageUrl(item) {
 }
 
 function renderEvidenceGallery(response) {
-  const items = Array.isArray(response.evidence) ? response.evidence : [];
+  // The richer per-photo shape (make/model/condition per frame) isn't
+  // produced by the current backend -- it fuses all photos into one
+  // breakdown instead. Fall back to breakdown.annotated_damage_photos
+  // (plain URL paths, one per photo where damage was actually localized
+  // and boxed) so the gallery still renders against the real API.
+  const evidence = Array.isArray(response.evidence) ? response.evidence : [];
+  const annotatedOnly = !evidence.length;
+  const annotatedPaths = Array.isArray(response.breakdown?.annotated_damage_photos)
+    ? response.breakdown.annotated_damage_photos
+    : [];
+  const items = evidence.length ? evidence : annotatedPaths.map((path) => ({ path, annotated: true }));
   if (!items.length) return null;
 
   const section = createElement("section", "evidence-card evidence-gallery");
-  section.append(createElement("h2", "", "What the model saw"));
+  section.append(createElement("h2", "", annotatedOnly ? "Flagged damage photos" : "What the model saw"));
   section.append(createElement(
     "p",
     "result-copy",
-    response.source === "video_keyframes"
-      ? "These are the key frames pulled from your video. Red boxes mark damage the model localized on that frame."
-      : "These are the exterior views used for the appraisal. Red boxes mark damage the model localized on that frame.",
+    annotatedOnly
+      ? "Red boxes mark damage the model localized on these photos."
+      : response.source === "video_keyframes"
+        ? "These are the key frames pulled from your video. Red boxes mark damage the model localized on that frame."
+        : "These are the exterior views used for the appraisal. Red boxes mark damage the model localized on that frame.",
   ));
 
   const grid = createElement("div", "evidence-grid");
