@@ -108,7 +108,23 @@
     "done": true
   },
   "Roll": {
-    "pages_done": 22,
+    "pages_done": 80,
+    "done": true
+  },
+  "Off": {
+    "pages_done": 4,
+    "done": true
+  },
+  "Truck": {
+    "pages_done": 4,
+    "done": true
+  },
+  "Sweeper": {
+    "pages_done": 6,
+    "done": true
+  },
+  "Fuel": {
+    "pages_done": 58,
     "done": false
   }
 }
