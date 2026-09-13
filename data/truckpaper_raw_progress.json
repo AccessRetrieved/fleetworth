@@ -31,20 +31,24 @@
     "pages_done": 29,
     "done": true
   },
-  "Ford F650": {
-    "pages_done": 16,
+  "Mack Anthem": {
+    "pages_done": 27,
     "done": true
   },
-  "Ford F750": {
-    "pages_done": 38,
+  "Hino 268": {
+    "pages_done": 18,
     "done": true
   },
-  "GMC Topkick": {
-    "pages_done": 10,
+  "Hino 338": {
+    "pages_done": 12,
     "done": true
   },
-  "Chevrolet Kodiak": {
-    "pages_done": 55,
-    "done": false
+  "Water Truck": {
+    "pages_done": 35,
+    "done": true
+  },
+  "Winch Truck": {
+    "pages_done": 8,
+    "done": true
   }
 }
