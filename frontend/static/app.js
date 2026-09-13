@@ -537,7 +537,7 @@ function startSession() {
   cameraSelect.disabled = true;
   recordingBadge.classList.remove("is-hidden");
   setSessionState("Recording live session", "recording");
-  actionMessage.textContent = "Walk around the truck. Clear frames will snap automatically.";
+  actionMessage.textContent = "";
   startClock();
   renderAll();
 }
