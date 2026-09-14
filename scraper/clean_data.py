@@ -126,7 +126,10 @@ def clean():
 
     seen_ids = set()
     cleaned = []
-    dropped = {"missing_price": 0, "missing_image": 0, "bad_year": 0, "duplicate": 0, "relist": 0, "malformed": 0}
+    dropped = {
+        "missing_price": 0, "missing_image": 0, "bad_year": 0, "duplicate": 0,
+        "relist": 0, "malformed": 0, "not_a_truck": 0,
+    }
 
     with RAW_PATH.open() as f:
         for line in f:
@@ -150,6 +153,18 @@ def clean():
                 dropped["duplicate"] += 1
                 continue
             seen_ids.add(r["listing_id"])
+
+            # Keyword searches incidentally pull in non-truck inventory
+            # (trailers have no engine/cab and share lot listings with
+            # trucks; SUVs match generic category keywords; "bodies only"
+            # listings are a bare truck bed/box with no chassis) -- none of
+            # these are comparable to a photo of a complete truck, and their
+            # very different pricing basis would pollute base_prices.json
+            # buckets for any make/model overlap.
+            category = (r.get("category") or "").lower()
+            if "trailer" in category or category == "suv" or "bodies only" in category:
+                dropped["not_a_truck"] += 1
+                continue
 
             if not r.get("price") or not r.get("image_urls"):
                 dropped["missing_price" if not r.get("price") else "missing_image"] += 1
