@@ -926,12 +926,6 @@ function formatMoney(value) {
 
 const IMPROVE_ESTIMATE_THRESHOLD = 0.8; // below this, the results screen offers a focused tire recapture
 
-function confidenceBand(confidence) {
-  if (confidence >= IMPROVE_ESTIMATE_THRESHOLD) return { label: "High confidence", tone: "success" };
-  if (confidence >= 0.6) return { label: "Moderate confidence", tone: "warning" };
-  return { label: "Limited confidence", tone: "danger" };
-}
-
 function titleCase(value) {
   return String(value).replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
@@ -1039,7 +1033,6 @@ function renderPricedResult(response) {
     return;
   }
   const confidence = Math.max(0, Math.min(1, Number(response.confidence) || 0));
-  const band = confidenceBand(confidence);
   const breakdown = response.breakdown || {};
   const visual = breakdown.visual_comps || {};
   const views = breakdown.views_used ?? captures.length;
@@ -1052,7 +1045,6 @@ function renderPricedResult(response) {
     createElement("h2", "", "Estimated market value"),
     createElement("p", "price-range", `${low}–${high}`),
   );
-  hero.append(renderConfidenceMeter(confidence, band));
   hero.append(createElement("p", "result-copy", `Based on ${views} usable exterior view${views === 1 ? "" : "s"}.`));
   if (confidence < IMPROVE_ESTIMATE_THRESHOLD) {
     hero.append(renderImproveEstimateAction());
@@ -1111,22 +1103,6 @@ function renderPricedResult(response) {
   ];
   appendResultActions(resultPanel, actions);
   resultPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function renderConfidenceMeter(confidence, band) {
-  const wrap = createElement("div", "confidence-meter");
-  const row = createElement("div", "confidence-row");
-  row.append(
-    createElement("span", "confidence-label", band.label),
-    createElement("span", "confidence-value", `${Math.round(confidence * 100)}%`),
-  );
-  wrap.append(row);
-  const track = createElement("div", "confidence-track");
-  const fill = createElement("div", `confidence-fill confidence-fill--${band.tone}`);
-  fill.style.width = `${Math.round(confidence * 100)}%`;
-  track.append(fill);
-  wrap.append(track);
-  return wrap;
 }
 
 function renderImproveEstimateAction() {

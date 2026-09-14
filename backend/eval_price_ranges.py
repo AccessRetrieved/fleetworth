@@ -75,7 +75,7 @@ def neighbor_lists(index, items: list[dict], rows: list[int], leaky: bool) -> li
     copy, title+price relist) is removed, searching deeper when many are.
     leaky excludes only the comp itself."""
     depth = TOP_K + 40
-    queries = np.ascontiguousarray(l2_normalize(np.stack([index.reconstruct(r) for r in rows])))
+    queries = np.ascontiguousarray(l2_normalize(np.stack([index.vectors[r] for r in rows])))
     similarities, neighbor_rows = index.search(queries, depth)
     lists = []
     for k, row in enumerate(rows):
