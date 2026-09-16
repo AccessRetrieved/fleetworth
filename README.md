@@ -22,7 +22,7 @@ Built for Kamion in the 54 Hackathon FA26.
 
 ## How we built it
 
-- **Data:** Playwright scraper pulls real listings from TruckPaper.com (respecting robots.txt, excluding auctions); cleaned, deduped, and relist-matched; grew from 375 → ~68,379 listings
+- **Data:** Playwright scraper pulls real listings from TruckPaper.com (respecting robots.txt, excluding auctions); cleaned, deduped, and relist-matched; grew from 375 → ~67,563 listings
 - **Backend:** FastAPI `/predict` endpoint — VLM extraction pipeline runs in parallel with DINOv2 embedding + FAISS retrieval against scraped comps; multi-view results fused with a recurrence bonus, priced via interpolated weighted median
 - **Frontend:** Flask/vanilla JS, mobile-first live camera capture
 - **Scaling:** custom Python orchestration script (cross-platform) let 3 machines on 3 networks scrape in parallel, coordinating entirely through git (union-merge for concurrent writes, commit messages as phase signals, sha256-verified index shard merges), with auto-restart on crash
